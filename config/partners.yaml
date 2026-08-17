@@ -1,0 +1,27 @@
+partners:
+  MZ-PATHFINDER:
+    name: "MZ-PATHFINDER"
+    source:
+      base_url: "https://data.psi-mis.org"
+      # URL using real dimension and analytics structure
+      analytics_url: "https://data.psi-mis.org/api/analytics.csv?dimension=dx:xA01Im2qXJ2;OIf5MUDkGjc;ikB8Ocarx3u;lUMKo1erWQ5;aXVGlFzOtno;sQqYMjbB8HR;JAG1MYpzgxl;MLUe29EGZG0;gwoemF7NzFs&dimension=ou:x1WEJQu4rJp;LEVEL-a2bG40SHomq&dimension=pe:{period}&tableLayout=true&columns=dx&rows=ou;pe&skipRounding=false&completedOnly=false&hideEmptyRows=true"
+      username_env: "PATHFINDER_DHIS2_USERNAME"
+      password_env: "PATHFINDER_DHIS2_PASSWORD"
+      pat_env: "PATHFINDER_DHIS2_PAT"
+    destination:
+      data_set: "Nrl1hP8S0mR"
+      attribute_option_combo: "PARTNER_AOC_UID"
+      mapping_file: "pathfinder.yaml"
+
+  MZ-PSI:
+    name: "MZ-PSI"
+    source:
+      base_url: "https://another-dhis2.org"
+      analytics_url: "https://another-dhis2.org/api/analytics.csv?dimension=dx:xA01Im2qXJ2;OIf5MUDkGjc&dimension=ou:LEVEL-2&dimension=pe:{period}&tableLayout=true&columns=dx&rows=ou;pe"
+      username_env: "PSI_DHIS2_USERNAME"
+      password_env: "PSI_DHIS2_PASSWORD"
+      pat_env: "PSI_DHIS2_PAT"
+    destination:
+      data_set: "DESTINATION_DATASET_UID"
+      attribute_option_combo: "PSI_AOC_UID"
+      mapping_file: "psi.yaml"

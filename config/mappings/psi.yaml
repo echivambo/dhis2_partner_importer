@@ -1,0 +1,11 @@
+data_elements:
+  # SOURCE_DE_UID: DEST_DE_UID
+  xA01Im2qXJ2: "DEST_DE_PSI_xA01"
+  OIf5MUDkGjc: "DEST_DE_PSI_OIf5"
+
+organisation_units:
+  # SOURCE_OU_UID: DEST_OU_UID
+  x1WEJQu4rJp: "DEST_OU_PSI_x1WE"
+
+category_option_combos:
+  default: "DEFAULT_COC_UID"
