@@ -39,7 +39,7 @@ class ConfigLoader:
             try:
                 # User requested: only data_elements and organisation_units sheets, no category_option_combos
                 de_df = pd.DataFrame(columns=["Source UID", "Destination UID", "Name"])
-                ou_df = pd.DataFrame(columns=["Source UID", "Destination UID", "Name", "District", "Country"])
+                ou_df = pd.DataFrame(columns=["Source UID", "Destination UID", "Name", "Province", "Country"])
                 
                 with pd.ExcelWriter(mapping_path, engine="openpyxl") as writer:
                     de_df.to_excel(writer, sheet_name="data_elements", index=False)

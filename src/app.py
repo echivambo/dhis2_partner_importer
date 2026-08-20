@@ -574,9 +574,9 @@ def generate_template_with_missing_keys(partner_id: str, state: dict):
                         for _, row in df_ou.iterrows():
                             src = str(row.iloc[0]).strip()
                             name = str(row.iloc[2]).strip() if len(row) > 2 and not pd.isna(row.iloc[2]) else ""
-                            district = str(row.iloc[3]).strip() if len(row) > 3 and not pd.isna(row.iloc[3]) else ""
+                            province = str(row.iloc[3]).strip() if len(row) > 3 and not pd.isna(row.iloc[3]) else ""
                             country = str(row.iloc[4]).strip() if len(row) > 4 and not pd.isna(row.iloc[4]) else ""
-                            existing_ou_details[src] = {"Name": name, "District": district, "Country": country}
+                            existing_ou_details[src] = {"Name": name, "Province": province, "Country": country}
             except Exception as e:
                 logger.warning("Could not read existing mapping details: %s", e)
                 
@@ -595,17 +595,17 @@ def generate_template_with_missing_keys(partner_id: str, state: dict):
         # Assemble Organisation Units rows
         ou_rows = []
         for src, dst in current_ou_map.items():
-            details = existing_ou_details.get(src, {"Name": "", "District": "", "Country": ""})
+            details = existing_ou_details.get(src, {"Name": "", "Province": "", "Country": ""})
             ou_rows.append({
                 "Source UID": src,
                 "Destination UID": dst,
                 "Name": details.get("Name", ""),
-                "District": details.get("District", ""),
+                "Province": details.get("Province", ""),
                 "Country": details.get("Country", "")
             })
         for src in report.missing_organisation_units:
             if src not in current_ou_map:
-                ou_rows.append({"Source UID": src, "Destination UID": "", "Name": "", "District": "", "Country": ""})
+                ou_rows.append({"Source UID": src, "Destination UID": "", "Name": "", "Province": "", "Country": ""})
                 
         with pd.ExcelWriter(mapping_path, engine="openpyxl") as writer:
             pd.DataFrame(de_rows).to_excel(writer, sheet_name="data_elements", index=False)

@@ -405,7 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     📥 Download Updated Mapping Sheet
                 </a>
                 <p style="margin: 10px 0 0 0; font-size: 0.8em; color: #555;">
-                    Open the file in Excel, fill in the blanks in the <strong>Destination UID</strong> and <strong>Name</strong> columns (along with <strong>District</strong> and <strong>Country</strong> for Organisation Units), save it, and upload it using the mappings manager.
+                    Open the file in Excel, fill in the blanks in the <strong>Destination UID</strong> and <strong>Name</strong> columns (along with <strong>Province</strong> and <strong>Country</strong> for Organisation Units), save it, and upload it using the mappings manager.
                 </p>
             </div>
         `;
