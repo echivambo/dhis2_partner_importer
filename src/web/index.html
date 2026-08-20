@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,8 +9,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=2.2">
 </head>
+
 <body>
 
     <!-- DHIS2 Native Top Header Bar -->
@@ -17,7 +19,8 @@
         <div class="dhis2-header-left">
             <div class="dhis2-logo-icon">
                 <svg viewBox="0 0 24 24" width="24" height="24">
-                    <path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,6V11H6V13H11V18H13V13H18V11H13V6H11Z"/>
+                    <path fill="currentColor"
+                        d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,6V11H6V13H11V18H13V13H18V11H13V6H11Z" />
                 </svg>
             </div>
             <span class="dhis2-app-title">DISC DHIS2 Data Importer</span>
@@ -26,7 +29,8 @@
             <!-- App Grid Icon -->
             <button class="header-btn" title="Apps">
                 <svg viewBox="0 0 24 24" width="20" height="20">
-                    <path fill="currentColor" d="M4,4H8V8H4V4M4,10H8V14H4V10M4,16H8V20H4V16M10,4H14V8H10V4M10,10H14V14H10V10M10,16H14V20H10V16M16,4H20V8H16V4M16,10H20V14H16V10M16,16H20V20H16V16Z"/>
+                    <path fill="currentColor"
+                        d="M4,4H8V8H4V4M4,10H8V14H4V10M4,16H8V20H4V16M10,4H14V8H10V4M10,10H14V14H10V10M10,16H14V20H10V16M16,4H20V8H16V4M16,10H20V14H16V10M16,16H20V20H16V16Z" />
                 </svg>
             </button>
             <div class="user-avatar" id="user-avatar-initials">AD</div>
@@ -39,19 +43,30 @@
         <aside class="app-sidebar">
             <nav class="sidebar-nav">
                 <button class="nav-tab active" data-tab="dashboard-tab">
-                    <svg viewBox="0 0 24 24" class="nav-icon"><path fill="currentColor" d="M13,3V9H21V3H13M3,13H11V21H3V13M3,3H11V11H3V3M13,11H21V21H13V11Z"/></svg>
+                    <svg viewBox="0 0 24 24" class="nav-icon">
+                        <path fill="currentColor"
+                            d="M13,3V9H21V3H13M3,13H11V21H3V13M3,3H11V11H3V3M13,11H21V21H13V11Z" />
+                    </svg>
                     <span>Dashboard</span>
                 </button>
                 <button class="nav-tab" data-tab="importer-tab">
-                    <svg viewBox="0 0 24 24" class="nav-icon"><path fill="currentColor" d="M19 13H5v-2h14v2zM5 15h14v2H5v-2zm0-8h14v2H5V7z"/></svg>
+                    <svg viewBox="0 0 24 24" class="nav-icon">
+                        <path fill="currentColor" d="M19 13H5v-2h14v2zM5 15h14v2H5v-2zm0-8h14v2H5V7z" />
+                    </svg>
                     <span>Import Data</span>
                 </button>
                 <button class="nav-tab" data-tab="mappings-tab">
-                    <svg viewBox="0 0 24 24" class="nav-icon"><path fill="currentColor" d="M10,4V8H14V4H10M16,4V8H20V4H16M16,10V14H20V10H16M16,16V20H20V16H16M10,10V14H14V10H10M10,16V20H14V16H10M4,4V8H8V4H4M4,10V14H8V10H4M4,16V20H8V16H4Z"/></svg>
+                    <svg viewBox="0 0 24 24" class="nav-icon">
+                        <path fill="currentColor"
+                            d="M10,4V8H14V4H10M16,4V8H20V4H16M16,10V14H20V10H16M16,16V20H20V16H16M10,10V14H14V10H10M10,16V20H14V16H10M4,4V8H8V4H4M4,10V14H8V10H4M4,16V20H8V16H4Z" />
+                    </svg>
                     <span>Manage Mappings</span>
                 </button>
                 <button class="nav-tab" data-tab="settings-tab">
-                    <svg viewBox="0 0 24 24" class="nav-icon"><path fill="currentColor" d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.47,5.34 14.86,5.08L14.47,2.42C14.43,2.18 14.22,2 13.97,2H9.97C9.72,2 9.51,2.18 9.47,2.42L9.08,5.08C8.47,5.34 7.9,5.66 7.38,6.05L4.89,5.05C4.67,4.96 4.4,5.05 4.28,5.27L2.28,8.73C2.16,8.95 2.21,9.22 2.4,9.37L4.51,11C4.47,11.34 4.45,11.67 4.45,12C4.45,12.33 4.47,12.65 4.51,12.97L2.4,14.63C2.21,14.78 2.16,15.05 2.28,15.27L4.28,18.73C4.4,18.95 4.67,19.04 4.89,18.95L7.38,17.95C7.9,18.34 8.47,18.66 9.08,18.92L9.47,21.58C9.51,21.82 9.72,22 9.97,22H13.97C14.22,22 14.43,21.82 14.47,21.58L14.86,18.92C15.47,18.66 16.04,18.34 16.56,17.95L19.05,18.95C19.27,19.04 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
+                    <svg viewBox="0 0 24 24" class="nav-icon">
+                        <path fill="currentColor"
+                            d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.47,5.34 14.86,5.08L14.47,2.42C14.43,2.18 14.22,2 13.97,2H9.97C9.72,2 9.51,2.18 9.47,2.42L9.08,5.08C8.47,5.34 7.9,5.66 7.38,6.05L4.89,5.05C4.67,4.96 4.4,5.05 4.28,5.27L2.28,8.73C2.16,8.95 2.21,9.22 2.4,9.37L4.51,11C4.47,11.34 4.45,11.67 4.45,12C4.45,12.33 4.47,12.65 4.51,12.97L2.4,14.63C2.21,14.78 2.16,15.05 2.28,15.27L4.28,18.73C4.4,18.95 4.67,19.04 4.89,18.95L7.38,17.95C7.9,18.34 8.47,18.66 9.08,18.92L9.47,21.58C9.51,21.82 9.72,22 9.97,22H13.97C14.22,22 14.43,21.82 14.47,21.58L14.86,18.92C15.47,18.66 16.04,18.34 16.56,17.95L19.05,18.95C19.27,19.04 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" />
+                    </svg>
                     <span>Settings</span>
                 </button>
             </nav>
@@ -66,7 +81,7 @@
                     <h2>Monitoring Dashboard</h2>
                     <p>Monitor connectivity status with DHIS2 servers and system statistics.</p>
                 </div>
-                
+
                 <!-- Connection Health Check Cards -->
                 <div class="dashboard-grid" id="dashboard-health-grid">
                     <div class="card status-card" id="health-dest-card">
@@ -86,13 +101,27 @@
                     </div>
                     <div class="card-body">
                         <div class="flex-column gap-15">
-                            <p style="line-height: 1.5; color: #444;">This platform allows facility managers to import monthly reports from partner DHIS2 instances into the central destination DHIS2 database. Follow these steps to execute a successful migration:</p>
-                            <ol style="margin-left: 20px; line-height: 1.6; display: flex; flex-direction: column; gap: 10px; color: #555;">
-                                <li><strong>Configure Connections:</strong> Go to the <strong>Settings</strong> tab and verify that the Destination DHIS2 credentials and Partner/Report Pivot Table links are correctly defined.</li>
-                                <li><strong>Extract Data:</strong> Open the <strong>Import Data</strong> tab. Choose the <strong>Source Partner</strong>, the specific <strong>Report</strong>, the <strong>Year</strong>, and the <strong>Month</strong>. Click <strong>Extract Data</strong> to fetch raw records.</li>
-                                <li><strong>Validate Mappings:</strong> Click <strong>Validate Mappings</strong> to translate element codes using global Excel rules. If there are unmapped UIDs, the system will allow you to download the updated Excel file, fill in the blanks, and upload it in the <strong>Manage Mappings</strong> tab.</li>
-                                <li><strong>Simulation (Dry Run):</strong> Click <strong>Simulate Import (Dry Run)</strong> to test writing records to the target server without making permanent changes. This is highly recommended to identify conflicts.</li>
-                                <li><strong>Commit Import:</strong> Mark the confirmation check and click <strong>Import to Destination</strong> to write the final values permanently.</li>
+                            <p style="line-height: 1.5; color: #444;">This platform allows facility managers to import
+                                monthly reports from partner DHIS2 instances into the central destination DHIS2
+                                database. Follow these steps to execute a successful migration:</p>
+                            <ol
+                                style="margin-left: 20px; line-height: 1.6; display: flex; flex-direction: column; gap: 10px; color: #555;">
+                                <li><strong>Configure Connections:</strong> Go to the <strong>Settings</strong> tab and
+                                    verify that the Destination DHIS2 credentials and Partner/Report Pivot Table links
+                                    are correctly defined.</li>
+                                <li><strong>Extract Data:</strong> Open the <strong>Import Data</strong> tab. Choose the
+                                    <strong>Source Partner</strong>, the specific <strong>Report</strong>, the
+                                    <strong>Year</strong>, and the <strong>Month</strong>. Click <strong>Extract
+                                        Data</strong> to fetch raw records.</li>
+                                <li><strong>Validate Mappings:</strong> Click <strong>Validate Mappings</strong> to
+                                    translate element codes using global Excel rules. If there are unmapped UIDs, the
+                                    system will allow you to download the updated Excel file, fill in the blanks, and
+                                    upload it in the <strong>Manage Mappings</strong> tab.</li>
+                                <li><strong>Simulation (Dry Run):</strong> Click <strong>Simulate Import (Dry
+                                        Run)</strong> to test writing records to the target server without making
+                                    permanent changes. This is highly recommended to identify conflicts.</li>
+                                <li><strong>Commit Import:</strong> Mark the confirmation check and click <strong>Import
+                                        to Destination</strong> to write the final values permanently.</li>
                             </ol>
                         </div>
                     </div>
@@ -103,8 +132,10 @@
                         <h3>General Information</h3>
                     </div>
                     <div class="card-body">
-                        <p>This utility performs the **Extract-Transform-Load (ETL)** process of monthly facility reports between partner DHIS2 instances and the central destination instance.</p>
-                        <p><strong>Security Tip:</strong> Connection credentials for each server are stored locally and securely in the <code>.env</code> environment file.</p>
+                        <p>This utility performs the **Extract-Transform-Load (ETL)** process of monthly facility
+                            reports between partner DHIS2 instances and the central destination instance.</p>
+                        <p><strong>Security Tip:</strong> Connection credentials for each server are stored locally and
+                            securely in the <code>.env</code> environment file.</p>
                     </div>
                 </div>
             </section>
@@ -113,7 +144,8 @@
             <section id="importer-tab" class="tab-panel">
                 <div class="content-header">
                     <h2>Data Importer (ETL)</h2>
-                    <p>Execute the monthly migration of health records by selecting the corresponding partner, report, and period.</p>
+                    <p>Execute the monthly migration of health records by selecting the corresponding partner, report,
+                        and period.</p>
                 </div>
 
                 <!-- Parameters Card -->
@@ -126,7 +158,8 @@
                             </select>
                             <!-- AOC display badge -->
                             <div class="margin-top-5" style="font-size: 0.85em; color: #555;">
-                                Destination AOC: <span id="lbl-partner-aoc" class="font-bold" style="color: var(--dhis2-blue);">None</span>
+                                Destination AOC: <span id="lbl-partner-aoc" class="font-bold"
+                                    style="color: var(--dhis2-blue);">None</span>
                             </div>
                         </div>
                         <div class="form-group flex-1 min-width-200">
@@ -194,7 +227,7 @@
                 <!-- Wizard Actions Panels -->
                 <div class="card margin-top-20">
                     <div class="card-body">
-                        
+
                         <!-- Actions Box -->
                         <div class="actions-container">
                             <button id="btn-extract" class="btn btn-primary">Extract Data</button>
@@ -265,7 +298,8 @@
                             <h3>1. Download Current Sheet</h3>
                         </div>
                         <div class="card-body text-center">
-                            <p>Download the global mapping sheet to review translation rules for elements, units, and combos.</p>
+                            <p>Download the global mapping sheet to review translation rules for elements, units, and
+                                combos.</p>
                             <button id="btn-download-mapping" class="btn btn-secondary margin-top-15">
                                 📥 Download Mapping Sheet (.xlsx)
                             </button>
@@ -279,10 +313,12 @@
                         </div>
                         <div class="card-body">
                             <p>Upload the revised global Excel file to apply new codes immediately.</p>
-                            
+
                             <!-- Custom Drag and Drop file selector -->
                             <div class="drag-drop-area" id="mapping-drag-area">
-                                <svg viewBox="0 0 24 24" class="upload-icon"><path fill="currentColor" d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg>
+                                <svg viewBox="0 0 24 24" class="upload-icon">
+                                    <path fill="currentColor" d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+                                </svg>
                                 <p>Drag and drop the file here or <strong>click to browse</strong></p>
                                 <input type="file" id="file-mapping-upload" accept=".xlsx,.xls,.csv" class="hide-input">
                             </div>
@@ -298,11 +334,16 @@
                     <div class="card-body">
                         <p>The global Excel file contains the following sheets representing mapping tables:</p>
                         <ul>
-                            <li><strong>data_elements</strong>: Mapping of Data Elements (column 1: Source UID; column 2: Destination UID; column 3: Name).</li>
-                            <li><strong>organisation_units</strong>: Mapping of Organisation Units (column 1: Source UID; column 2: Destination UID; column 3: Name; column 4: District; column 5: Country).</li>
-                            <li><strong>category_option_combos</strong>: Mapping of category option combos (column 1: Source UID; column 2: Destination UID; column 3: Name).</li>
+                            <li><strong>data_elements</strong>: Mapping of Data Elements (column 1: Source UID; column
+                                2: Destination UID; column 3: Name).</li>
+                            <li><strong>organisation_units</strong>: Mapping of Organisation Units (column 1: Source
+                                UID; column 2: Destination UID; column 3: Name; column 4: District; column 5: Country).
+                            </li>
+                            <li><strong>category_option_combos</strong>: Mapping of category option combos (column 1:
+                                Source UID; column 2: Destination UID; column 3: Name).</li>
                         </ul>
-                        <p class="text-warning font-bold">[⚠️] Warning: Do not change the sheet names or column positions to prevent loader parsing errors.</p>
+                        <p class="text-warning font-bold">[⚠️] Warning: Do not change the sheet names or column
+                            positions to prevent loader parsing errors.</p>
                     </div>
                 </div>
             </section>
@@ -323,7 +364,8 @@
                         <div class="card-body flex-column gap-15">
                             <div class="form-group">
                                 <label for="txt-dest-url">Central Instance URL</label>
-                                <input type="text" id="txt-dest-url" class="form-control" placeholder="https://play.dhis2.org/2.40.0" required>
+                                <input type="text" id="txt-dest-url" class="form-control"
+                                    placeholder="https://play.dhis2.org/2.40.0" required>
                             </div>
                             <div class="flex-row-wrap gap-15">
                                 <div class="form-group flex-1 min-width-200">
@@ -332,7 +374,8 @@
                                 </div>
                                 <div class="form-group flex-1 min-width-200">
                                     <label for="txt-dest-password">Password</label>
-                                    <input type="password" id="txt-dest-password" class="form-control" placeholder="********">
+                                    <input type="password" id="txt-dest-password" class="form-control"
+                                        placeholder="********">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -341,7 +384,8 @@
                             </div>
                             <div class="form-group flex-row align-center gap-10">
                                 <input type="checkbox" id="chk-verify-ssl" checked>
-                                <label for="chk-verify-ssl" class="no-margin">Verify SSL certificate (Recommended for production)</label>
+                                <label for="chk-verify-ssl" class="no-margin">Verify SSL certificate (Recommended for
+                                    production)</label>
                             </div>
                         </div>
                     </div>
@@ -435,7 +479,7 @@
         <div class="modal-card">
             <h3 class="text-danger">⚠️ Confirm Live Import</h3>
             <p>You are about to perform a permanent data write to the central DHIS2 server. Do you want to proceed?</p>
-            
+
             <div class="form-group flex-row align-center gap-10 margin-top-15">
                 <input type="checkbox" id="chk-modal-complete">
                 <label for="chk-modal-complete" class="no-margin">Mark dataset as complete on submission</label>
@@ -453,6 +497,7 @@
     </div>
 
     <!-- Script loading -->
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2.2"></script>
 </body>
+
 </html>

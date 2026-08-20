@@ -13,8 +13,8 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     Uses synonyms to handle DHIS2 API version differences.
     """
     synonyms = {
-        'data_element': ['data element', 'dataelement', 'dx', 'data_element', 'data_element_uid'],
-        'org_unit': ['organisation unit', 'organisationunit', 'orgunit', 'ou', 'organisation_unit', 'org_unit_uid'],
+        'data_element': ['data', 'data element', 'dataelement', 'dx', 'data_element', 'data_element_uid'],
+        'org_unit': ['organisation unit', 'organisationunit', 'orgunit', 'ou', 'organisation_unit', 'org_unit_uid', 'org unit'],
         'period': ['period', 'pe', 'periodo'],
         'value': ['value', 'val', 'valor']
     }

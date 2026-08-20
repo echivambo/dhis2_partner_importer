@@ -42,7 +42,3 @@ venv.bak/
 # OS
 .DS_Store
 Thumbs.db
-
-# Local config
-config/local_config.yaml
-

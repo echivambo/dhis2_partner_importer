@@ -33,21 +33,44 @@ def transform_partner_data(df: pd.DataFrame, partner_config: Dict[str, Any]) -> 
     transformed_df = transformed_df.rename(columns=rename_rules)
     
     # 3. Perform mapping of Data Elements and Org Units
-    transformed_df['dest_data_element'] = transformed_df['source_data_element'].map(de_mappings)
+    def map_de_row(source_de_str):
+        if pd.isna(source_de_str) or not isinstance(source_de_str, str):
+            return None, None, None
+            
+        source_de_str = source_de_str.strip()
+        
+        # Try exact match first
+        mapped = de_mappings.get(source_de_str)
+        
+        # Parse source DE and COC
+        src_de = source_de_str
+        src_coc = None
+        if "." in source_de_str:
+            src_de, src_coc = source_de_str.split(".", 1)
+            
+        if not mapped:
+            # Match DE part only
+            mapped = de_mappings.get(src_de)
+            
+        if mapped:
+            mapped = str(mapped).strip()
+            if "." in mapped:
+                dest_de, dest_coc = mapped.split(".", 1)
+                return dest_de, src_coc, dest_coc
+            else:
+                return mapped, src_coc, "default"
+        else:
+            return None, src_coc, None
+
+    # Apply mapping row-by-row
+    mapped_results = transformed_df['source_data_element'].apply(map_de_row)
+    
+    transformed_df['dest_data_element'] = [res[0] for res in mapped_results]
+    transformed_df['source_category_option_combo'] = [res[1] for res in mapped_results]
+    transformed_df['dest_category_option_combo'] = [res[2] for res in mapped_results]
+    
     transformed_df['dest_org_unit'] = transformed_df['source_org_unit'].map(ou_mappings)
-    
-    # 4. Handle Category Option Combo (COC) mapping
-    default_coc_uid = coc_mappings.get('default', 'default')
-    
-    # If the source data has a category option combo column, try to map it
-    if 'category_option_combo' in transformed_df.columns:
-        transformed_df = transformed_df.rename(columns={'category_option_combo': 'source_category_option_combo'})
-        # Map values; if a value is not mapped, default to the original or the default COC
-        transformed_df['dest_category_option_combo'] = transformed_df['source_category_option_combo'].map(coc_mappings).fillna(default_coc_uid)
-    else:
-        # If not present, assign default COC UID to all rows
-        transformed_df['dest_category_option_combo'] = default_coc_uid
-        transformed_df['source_category_option_combo'] = None
+
         
     # 5. Populate destination Attribute Option Combo (AOC)
     transformed_df['dest_attribute_option_combo'] = aoc_uid

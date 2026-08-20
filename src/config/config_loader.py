@@ -10,14 +10,15 @@ DEFAULT_CONFIG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..
 
 class ConfigLoader:
     """
-    Loads global partner settings from config/partners.yaml
-    and resolves environment variables and mapping files.
+    Loads global configurations. Supports persistent local_config.yaml
+    and auto-generates Excel mapping template if mappings.xlsx is missing.
     """
     def __init__(self, config_dir: str = DEFAULT_CONFIG_DIR):
         self.config_dir = config_dir
         self.local_config_file = os.path.join(config_dir, "local_config.yaml")
         self.partners_file = os.path.join(config_dir, "partners.yaml")
         self.mappings_dir = os.path.join(config_dir, "mappings")
+        
         self._partners_config: Dict[str, Any] = {}
         self._reports_config: Dict[str, Any] = {}
         self._sources_config: Dict[str, Any] = {}
@@ -28,36 +29,34 @@ class ConfigLoader:
         self.load_partners()
 
     def ensure_mappings_file_exists(self):
-        """Automatically generates an empty global mappings.xlsx file if it does not exist."""
+        """Automatically generates an empty global mappings.xlsx template (without category_option_combos)."""
         os.makedirs(self.mappings_dir, exist_ok=True)
         mapping_path = os.path.join(self.mappings_dir, "mappings.xlsx")
         
         if not os.path.exists(mapping_path):
             import pandas as pd
-            logger.info("mappings.xlsx not found. Auto-generating clean mapping template at %s", mapping_path)
+            logger.info("mappings.xlsx not found. Auto-generating mapping template at %s", mapping_path)
             try:
+                # User requested: only data_elements and organisation_units sheets, no category_option_combos
                 de_df = pd.DataFrame(columns=["Source UID", "Destination UID", "Name"])
                 ou_df = pd.DataFrame(columns=["Source UID", "Destination UID", "Name", "District", "Country"])
-                coc_df = pd.DataFrame(columns=["Source UID", "Destination UID", "Name"])
                 
                 with pd.ExcelWriter(mapping_path, engine="openpyxl") as writer:
                     de_df.to_excel(writer, sheet_name="data_elements", index=False)
                     ou_df.to_excel(writer, sheet_name="organisation_units", index=False)
-                    coc_df.to_excel(writer, sheet_name="category_option_combos", index=False)
             except Exception as e:
                 logger.error("Failed to auto-generate mappings.xlsx template: %s", e)
 
     def load_partners(self):
-        """Load partners, reports, and sources configuration from local_config.yaml (or fallback to partners.yaml)."""
-        # Determine which file to load
+        """Load configurations from local_config.yaml (falls back to template partners.yaml)."""
         load_path = self.local_config_file
         if not os.path.exists(load_path):
             if os.path.exists(self.partners_file):
                 load_path = self.partners_file
-                logger.info("local_config.yaml not found. Initializing from default partners.yaml.")
+                logger.info("local_config.yaml not found. Initializing from default partners.yaml template.")
             else:
                 logger.error("No configuration files found at config/ directory.")
-                raise FileNotFoundError("Configuration file partners.yaml not found.")
+                raise FileNotFoundError("Configuration file partners.yaml template not found.")
 
         try:
             with open(load_path, "r", encoding="utf-8") as f:
@@ -74,7 +73,7 @@ class ConfigLoader:
                 load_path
             )
             
-            # If we loaded from the default partners.yaml, write it to local_config.yaml to persist it
+            # Persist local copy immediately if loaded from template
             if load_path == self.partners_file:
                 self.save_local_config()
         except Exception as e:
@@ -82,7 +81,7 @@ class ConfigLoader:
             raise
 
     def save_local_config(self):
-        """Saves current memory configurations to local_config.yaml."""
+        """Persists memory configurations to local_config.yaml."""
         try:
             new_yaml_config = {
                 "partners": self._partners_config,
@@ -112,15 +111,13 @@ class ConfigLoader:
         return self._sources_config
 
     def get_partner_config(self, partner_id: str) -> Dict[str, Any]:
-        """
-        Retrieve partner configuration and load global mapping file.
-        """
+        """Retrieve partner configuration and load global mappings."""
         if partner_id not in self._partners_config:
             raise KeyError(f"Partner '{partner_id}' not found in configuration.")
 
         config = self._partners_config[partner_id].copy()
 
-        # Load global mappings
+        # Load global mappings from mappings.xlsx
         mapping_file = "mappings.xlsx"
         mappings = {
             "data_elements": {},
@@ -230,7 +227,7 @@ class ConfigLoader:
         return mappings
 
     def get_destination_config(self) -> Dict[str, Any]:
-        """Retrieve destination instance connection credentials from global environment."""
+        """Retrieve destination instance connection credentials."""
         return {
             "url": os.getenv("DESTINATION_DHIS2_URL"),
             "username": os.getenv("DESTINATION_DHIS2_USERNAME"),
