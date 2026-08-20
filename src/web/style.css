@@ -601,3 +601,125 @@ body {
     50% { transform: scale(1.05); }
     100% { transform: scale(1); }
 }
+
+/* Fullscreen Login Interface Style */
+.login-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #1e2530 0%, #005a9c 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.login-card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    width: 420px;
+    max-width: 90%;
+    padding: 36px 32px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+    animation: slideUp 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.login-logo {
+    font-size: 3em;
+    color: var(--dhis2-blue);
+    margin-bottom: 12px;
+    display: inline-block;
+    animation: pulse 3s infinite;
+}
+
+.login-header h1 {
+    font-size: 1.6em;
+    font-weight: 600;
+    color: #212934;
+    margin-bottom: 6px;
+}
+
+.login-header p {
+    font-size: 0.9em;
+    color: #666666;
+}
+
+/* Responsiveness Media Queries */
+@media (max-width: 768px) {
+    /* Top bar adjustment */
+    .dhis2-app-title {
+        font-size: 1em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 150px;
+    }
+    
+    #btn-sidebar-toggle {
+        display: flex !important;
+    }
+
+    /* Layout stack shifts */
+    .app-layout {
+        position: relative;
+    }
+
+    .app-sidebar {
+        position: absolute;
+        left: -240px;
+        top: 0;
+        bottom: 0;
+        z-index: 999;
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 4px 0 15px rgba(0,0,0,0.15);
+        height: 100%;
+    }
+
+    .app-sidebar.mobile-open {
+        left: 0;
+    }
+
+    .app-content {
+        padding: 16px;
+        width: 100%;
+    }
+
+    /* Stack flex grids */
+    .grid-2, .grid-3, .flex-row, .flex-row-wrap {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    .flex-row.justify-between, .flex-row.justify-end {
+        align-items: stretch !important;
+        gap: 10px;
+    }
+
+    /* Form control alignments */
+    .form-group.flex-1 {
+        flex: none !important;
+        width: 100%;
+    }
+    
+    /* Make tables scrollable on small screens */
+    .scroll-x {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+    }
+
+    /* Make warning/error listing boxes fit */
+    .code-box {
+        max-height: 200px;
+    }
+}

@@ -6,6 +6,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- STATE MANAGEMENT ---
+    let currentUser = null;
     let loadedPartners = {};
     let loadedReports = {};
     let loadedSources = {};
@@ -86,6 +87,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 runConnectionHealthChecks();
             } else if (targetTab === 'settings-tab') {
                 fetchSettings();
+                fetchUsers();
+            } else if (targetTab === 'logs-tab') {
+                fetchAuditLogs();
             }
         });
     });
@@ -849,28 +853,313 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- NATIVE CACHE CLEANER LOGIC ---
-    const btnClearCache = document.getElementById('btn-clear-browser-cache');
-    if (btnClearCache) {
-        btnClearCache.addEventListener('click', () => {
-            logToConsole("Clearing browser local storage and session data...", "warning");
-            localStorage.clear();
-            sessionStorage.clear();
-            
-            if (window.caches) {
-                caches.keys().then(names => {
-                    for (let name of names) caches.delete(name);
-                });
+    // --- RESPONSIVE SIDEBAR MOBILE TOGGLE ---
+    const btnSidebarToggle = document.getElementById('btn-sidebar-toggle');
+    const appSidebar = document.querySelector('.app-sidebar');
+    if (btnSidebarToggle && appSidebar) {
+        btnSidebarToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            appSidebar.classList.toggle('mobile-open');
+        });
+        
+        // Close sidebar if user clicks a tab button on mobile
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                appSidebar.classList.remove('mobile-open');
+            });
+        });
+        
+        // Close sidebar when clicking outside
+        document.addEventListener('click', (e) => {
+            if (appSidebar.classList.contains('mobile-open') && !appSidebar.contains(e.target) && e.target !== btnSidebarToggle) {
+                appSidebar.classList.remove('mobile-open');
             }
-            
-            logToConsole("Cache cleared successfully! Performing hard reload...", "success");
-            alert("Cache cleared successfully! Reloading page...");
-            
-            setTimeout(() => {
-                window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
-            }, 300);
         });
     }
 
-    initApp();
+    // --- SESSION CONTROL: LOGIN & LOGOUT FLOWS ---
+    async function checkAuth() {
+        try {
+            const res = await fetch('/api/me');
+            if (res.status === 401) {
+                showLoginScreen();
+                return;
+            }
+            const data = await res.json();
+            if (data.status === 'success') {
+                currentUser = data;
+                hideLoginScreen();
+                
+                // Set initials on avatar
+                const avatar = document.querySelector('.user-avatar');
+                if (avatar) {
+                    avatar.textContent = data.username.slice(0, 2).toUpperCase();
+                }
+                
+                // Show/hide admin panels
+                const userCard = document.getElementById('card-manage-users');
+                if (data.role === 'admin') {
+                    if (userCard) userCard.classList.remove('hide');
+                    fetchUsers();
+                } else {
+                    if (userCard) userCard.classList.add('hide');
+                }
+                
+                initApp();
+            } else {
+                showLoginScreen();
+            }
+        } catch (error) {
+            console.error("Failed checking authentication status:", error);
+            showLoginScreen();
+        }
+    }
+
+    function showLoginScreen() {
+        document.getElementById('login-container').classList.remove('hide');
+        document.querySelector('.app-layout').style.display = 'none';
+        document.querySelector('.dhis2-header').style.display = 'none';
+    }
+
+    function hideLoginScreen() {
+        document.getElementById('login-container').classList.add('hide');
+        document.querySelector('.app-layout').style.display = 'flex';
+        document.querySelector('.dhis2-header').style.display = 'flex';
+    }
+
+    const formLogin = document.getElementById('form-login');
+    const loginErrorMsg = document.getElementById('login-error-msg');
+    if (formLogin) {
+        formLogin.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('txt-login-username').value.trim();
+            const password = document.getElementById('txt-login-password').value;
+            
+            loginErrorMsg.classList.add('hide');
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    currentUser = data;
+                    hideLoginScreen();
+                    
+                    const avatar = document.querySelector('.user-avatar');
+                    if (avatar) {
+                        avatar.textContent = data.username.slice(0, 2).toUpperCase();
+                    }
+                    
+                    const userCard = document.getElementById('card-manage-users');
+                    if (data.role === 'admin') {
+                        if (userCard) userCard.classList.remove('hide');
+                        fetchUsers();
+                    } else {
+                        if (userCard) userCard.classList.add('hide');
+                    }
+                    
+                    initApp();
+                } else {
+                    loginErrorMsg.textContent = data.detail || "Invalid username or password.";
+                    loginErrorMsg.classList.remove('hide');
+                }
+            } catch (err) {
+                loginErrorMsg.textContent = "Connection error. Please try again.";
+                loginErrorMsg.classList.remove('hide');
+            }
+        });
+    }
+
+    const btnLogout = document.getElementById('btn-logout');
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            if (confirm("Are you sure you want to sign out?")) {
+                try {
+                    await fetch('/api/logout', { method: 'POST' });
+                } catch (e) {}
+                window.location.reload();
+            }
+        });
+    }
+
+    // --- USER MANAGEMENT CRUD ---
+    const btnAddUserModal = document.getElementById('btn-add-user-modal');
+    const modalCreateUser = document.getElementById('modal-create-user');
+    const btnModalUserCancel = document.getElementById('btn-modal-user-cancel');
+    const formCreateUser = document.getElementById('form-create-user');
+    const tableUsersBody = document.querySelector('#table-settings-users tbody');
+
+    if (btnAddUserModal && modalCreateUser) {
+        btnAddUserModal.addEventListener('click', () => {
+            modalCreateUser.classList.remove('hide');
+        });
+    }
+    if (btnModalUserCancel && modalCreateUser) {
+        btnModalUserCancel.addEventListener('click', () => {
+            modalCreateUser.classList.add('hide');
+        });
+    }
+
+    async function fetchUsers() {
+        if (!currentUser || currentUser.role !== 'admin') return;
+        try {
+            const res = await fetch('/api/users');
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                renderUsers(data.users);
+            }
+        } catch (err) {
+            console.error("Failed to fetch users:", err);
+        }
+    }
+
+    function renderUsers(users) {
+        if (!tableUsersBody) return;
+        tableUsersBody.innerHTML = '';
+        if (users.length === 0) {
+            tableUsersBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">No users registered.</td></tr>';
+            return;
+        }
+        users.forEach(user => {
+            const tr = document.createElement('tr');
+            const dateStr = new Date(user.created_at).toLocaleString();
+            const isSelf = currentUser && user.username === currentUser.username;
+            const deleteBtn = isSelf ? 
+                `<span class="badge" style="color: #666; background-color: #ddd;">Active (You)</span>` : 
+                `<button type="button" class="btn btn-danger btn-sm btn-delete-user" data-username="${user.username}">Delete</button>`;
+            
+            tr.innerHTML = `
+                <td><strong>${user.username}</strong></td>
+                <td><span class="badge ${user.role === 'admin' ? 'badge-success' : 'badge-warning'}">${user.role.toUpperCase()}</span></td>
+                <td>${dateStr}</td>
+                <td>${deleteBtn}</td>
+            `;
+            tableUsersBody.appendChild(tr);
+        });
+
+        // Bind delete handlers
+        tableUsersBody.querySelectorAll('.btn-delete-user').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const u = btn.getAttribute('data-username');
+                if (confirm(`Are you sure you want to delete user '${u}'?`)) {
+                    try {
+                        const res = await fetch(`/api/users/${u}`, { method: 'DELETE' });
+                        const data = await res.json();
+                        if (res.ok && data.status === 'success') {
+                            alert(data.message);
+                            fetchUsers();
+                        } else {
+                            alert(data.detail || "Failed to delete user.");
+                        }
+                    } catch (err) {
+                        alert("Error deleting user: " + err.message);
+                    }
+                }
+            });
+        });
+    }
+
+    if (formCreateUser) {
+        formCreateUser.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('txt-new-username').value.trim();
+            const password = document.getElementById('txt-new-password').value;
+            const role = document.getElementById('select-new-role').value;
+
+            try {
+                const res = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, role })
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    alert(data.message);
+                    formCreateUser.reset();
+                    modalCreateUser.classList.add('hide');
+                    fetchUsers();
+                } else {
+                    alert(data.detail || "Failed to create user.");
+                }
+            } catch (err) {
+                alert("Error creating user: " + err.message);
+            }
+        });
+    }
+
+    // --- AUDIT LOGS RETRIEVAL & FILTERS ---
+    const btnFilterLogs = document.getElementById('btn-filter-logs');
+    const btnClearLogFilters = document.getElementById('btn-clear-log-filters');
+    const btnExportLogs = document.getElementById('btn-export-logs');
+    const tableLogsBody = document.querySelector('#table-audit-logs tbody');
+
+    async function fetchAuditLogs(start = '', end = '') {
+        try {
+            let url = '/api/logs';
+            if (start || end) {
+                url += `?start_date=${start}&end_date=${end}`;
+            }
+            const res = await fetch(url);
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                renderAuditLogs(data.logs);
+            }
+        } catch (err) {
+            console.error("Failed to fetch audit logs:", err);
+        }
+    }
+
+    function renderAuditLogs(logs) {
+        if (!tableLogsBody) return;
+        tableLogsBody.innerHTML = '';
+        if (logs.length === 0) {
+            tableLogsBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #666;">No audit logs found.</td></tr>';
+            return;
+        }
+        logs.forEach(log => {
+            const tr = document.createElement('tr');
+            const dateStr = new Date(log.timestamp).toLocaleString();
+            
+            tr.innerHTML = `
+                <td>${dateStr}</td>
+                <td><strong>${log.username}</strong></td>
+                <td><span class="badge badge-success" style="background-color: #2b394a;">${log.action}</span></td>
+                <td>${log.details || ''}</td>
+                <td style="color: #666; font-size: 0.9em;">${log.ip_address || ''}</td>
+            `;
+            tableLogsBody.appendChild(tr);
+        });
+    }
+
+    if (btnFilterLogs) {
+        btnFilterLogs.addEventListener('click', () => {
+            const start = document.getElementById('txt-log-start-date').value;
+            const end = document.getElementById('txt-log-end-date').value;
+            fetchAuditLogs(start, end);
+        });
+    }
+
+    if (btnClearLogFilters) {
+        btnClearLogFilters.addEventListener('click', () => {
+            document.getElementById('txt-log-start-date').value = '';
+            document.getElementById('txt-log-end-date').value = '';
+            fetchAuditLogs();
+        });
+    }
+
+    if (btnExportLogs) {
+        btnExportLogs.addEventListener('click', () => {
+            const start = document.getElementById('txt-log-start-date').value;
+            const end = document.getElementById('txt-log-end-date').value;
+            let downloadUrl = '/api/logs/export';
+            if (start || end) {
+                downloadUrl += `?start_date=${start}&end_date=${end}`;
+            }
+            window.location.href = downloadUrl;
+        });
+    }
+
+    checkAuth();
 });

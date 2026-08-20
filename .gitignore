@@ -45,4 +45,5 @@ Thumbs.db
 
 # Local config
 config/local_config.yaml
+*.db
 

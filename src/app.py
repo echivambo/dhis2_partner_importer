@@ -17,10 +17,11 @@ import sys
 import logging
 import shutil
 import yaml
+import io
 import pandas as pd
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks, Depends, Cookie, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -48,6 +49,38 @@ app = FastAPI(
     description="Backend API for managing DHIS2 integration, credentials, and data pipeline.",
     version="2.0.0"
 )
+
+# Initialize SQLite database on app startup
+from src.utils.db import (
+    init_db, get_session_user, create_session, delete_session,
+    verify_password, get_user, create_user, delete_user,
+    list_users, get_audit_logs, log_action
+)
+init_db()
+
+# --- AUTHENTICATION DEPENDENCIES & MODELS ---
+
+def get_current_user(session_id: Optional[str] = Cookie(None)):
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = get_session_user(session_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="Session expired or invalid")
+    return user
+
+def get_admin_user(current_user: Dict[str, Any] = Depends(get_current_user)):
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin permissions required")
+    return current_user
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class UserCreateRequest(BaseModel):
+    username: str
+    password: str
+    role: str
 
 # Global variables for caching active dataframes and configs
 # Key: partner_id, Value: dict containing 'raw_df', 'transformed_df', 'validation_report'
@@ -89,6 +122,113 @@ class SettingsUpdate(BaseModel):
     partners: Dict[str, Dict[str, Any]]  # Key: partner ID, Value: partner data (name, attribute_option_combo)
     reports: Dict[str, Dict[str, Any]]   # Key: report ID, Value: report data (name, pivot_table_url, data_set)
     sources: Dict[str, Dict[str, Any]]   # Key: base_url, Value: source data (base_url, username, password)
+
+# --- AUTHENTICATION & ACCESS CONTROL ENDPOINTS ---
+
+@app.post("/api/login")
+def login(request: Request, response: Response, payload: LoginRequest):
+    username = payload.username.strip()
+    password = payload.password
+    
+    user = get_user(username)
+    if not user or not verify_password(password, user["password_hash"]):
+        log_action(username or "unknown", "Failed Login", "Invalid credentials", request.client.host)
+        raise HTTPException(status_code=400, detail="Invalid username or password")
+        
+    session_id = create_session(username)
+    response.set_cookie(
+        key="session_id",
+        value=session_id,
+        httponly=True,
+        max_age=86400,
+        samesite="lax",
+        secure=False
+    )
+    log_action(username, "Login", "User logged in successfully", request.client.host)
+    return {"status": "success", "username": username, "role": user["role"]}
+
+@app.post("/api/logout")
+def logout(request: Request, response: Response, session_id: Optional[str] = Cookie(None)):
+    if session_id:
+        user = get_session_user(session_id)
+        username = user["username"] if user else "unknown"
+        delete_session(session_id)
+        log_action(username, "Logout", "User logged out", request.client.host)
+        
+    response.delete_cookie(key="session_id")
+    return {"status": "success", "message": "Logged out successfully"}
+
+@app.get("/api/me")
+def get_me(current_user: Dict[str, Any] = Depends(get_current_user)):
+    return {"status": "success", "username": current_user["username"], "role": current_user["role"]}
+
+@app.get("/api/users")
+def get_users_list(current_user: Dict[str, Any] = Depends(get_admin_user)):
+    users = list_users()
+    return {"status": "success", "users": users}
+
+@app.post("/api/users")
+def add_new_user(request: Request, payload: UserCreateRequest, current_user: Dict[str, Any] = Depends(get_admin_user)):
+    username = payload.username.strip()
+    password = payload.password
+    role = payload.role.strip().lower()
+    
+    if not username or not password or role not in ("admin", "operator"):
+        raise HTTPException(status_code=400, detail="Invalid username, password, or role")
+        
+    success = create_user(username, password, role)
+    if not success:
+        raise HTTPException(status_code=400, detail=f"User '{username}' already exists")
+        
+    log_action(current_user["username"], "Create User", f"Created user: {username} ({role})", request.client.host)
+    return {"status": "success", "message": f"User '{username}' registered successfully."}
+
+@app.delete("/api/users/{target_username}")
+def remove_user(request: Request, target_username: str, current_user: Dict[str, Any] = Depends(get_admin_user)):
+    target_username = target_username.strip()
+    if target_username == current_user["username"]:
+        raise HTTPException(status_code=400, detail="You cannot delete yourself.")
+        
+    users = list_users()
+    admins = [u for u in users if u["role"] == "admin"]
+    target_user = get_user(target_username)
+    if target_user and target_user["role"] == "admin" and len(admins) <= 1:
+        raise HTTPException(status_code=400, detail="Cannot delete the last administrator.")
+        
+    success = delete_user(target_username)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"User '{target_username}' not found.")
+        
+    log_action(current_user["username"], "Delete User", f"Deleted user: {target_username}", request.client.host)
+    return {"status": "success", "message": f"User '{target_username}' deleted successfully."}
+
+@app.get("/api/logs")
+def fetch_logs(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    logs = get_audit_logs(start_date=start_date, end_date=end_date)
+    return {"status": "success", "logs": logs}
+
+@app.get("/api/logs/export")
+def export_logs_csv(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    logs = get_audit_logs(start_date=start_date, end_date=end_date)
+    writer = pd.DataFrame(logs)
+    if not writer.empty:
+        writer = writer[['timestamp', 'username', 'action', 'details', 'ip_address']]
+        writer.columns = ['Timestamp', 'Username', 'Action', 'Details', 'IP Address']
+        csv_content = writer.to_csv(index=False, encoding='utf-8-sig')
+    else:
+        csv_content = "Timestamp,Username,Action,Details,IP Address\n"
+        
+    response = Response(content=csv_content, media_type="text/csv")
+    response.headers["Content-Disposition"] = "attachment; filename=audit_logs.csv"
+    return response
 
 # --- CORE ENDPOINTS ---
 
@@ -193,11 +333,11 @@ def run_health_checks():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/extract")
-def extract_data(request: ExtractRequest):
+def extract_data(request: Request, payload: ExtractRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Executes the extraction process from the source server using report's pivot table URL for a period."""
-    partner_id = request.partner_id
-    report_id = request.report_id
-    period = f"{request.year}{request.month}"
+    partner_id = payload.partner_id
+    report_id = payload.report_id
+    period = f"{payload.year}{payload.month}"
     
     logger.info("Extracting data for partner=%s, report=%s, period=%s", partner_id, report_id, period)
     try:
@@ -264,6 +404,13 @@ def extract_data(request: ExtractRequest):
         unique_de = raw_df['data_element'].nunique() if not raw_df.empty else 0
         unique_ou = raw_df['org_unit'].nunique() if not raw_df.empty else 0
         
+        log_action(
+            current_user["username"],
+            "Extract Data",
+            f"Extracted partner={partner_id}, report={report_id}, period={period} (Count={len(raw_df)})",
+            request.client.host
+        )
+        
         return {
             "status": "success",
             "records_extracted": len(raw_df),
@@ -275,9 +422,9 @@ def extract_data(request: ExtractRequest):
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
 @app.post("/api/validate")
-def validate_data(request: ValidateRequest):
+def validate_data(request: Request, payload: ValidateRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Runs data mappings translation and performs validation constraints on UIDs."""
-    partner_id = request.partner_id
+    partner_id = payload.partner_id
     
     if partner_id not in active_state or active_state[partner_id]["raw_df"] is None:
         raise HTTPException(status_code=400, detail="Data must be extracted before running validation.")
@@ -321,6 +468,13 @@ def validate_data(request: ValidateRequest):
             ]
             preview_data = transformed_df[preview_cols].head(15).fillna("").to_dict(orient="records")
             
+        log_action(
+            current_user["username"],
+            "Validate Mappings",
+            f"Validated partner={partner_id} (IsValid={summary['is_valid']}, MissingDE={summary['missing_de_count']}, MissingOU={summary['missing_ou_count']})",
+            request.client.host
+        )
+            
         return {
             "status": "success",
             "is_valid": summary["is_valid"],
@@ -340,10 +494,10 @@ def validate_data(request: ValidateRequest):
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
 @app.post("/api/dry-run")
-def dry_run_import(request: DryRunRequest):
+def dry_run_import(request: Request, payload: DryRunRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Performs a simulated dry-run import to the target DHIS2 server."""
-    partner_id = request.partner_id
-    ignore_missing = request.ignore_missing_mappings
+    partner_id = payload.partner_id
+    ignore_missing = payload.ignore_missing_mappings
     
     if partner_id not in active_state or active_state[partner_id]["transformed_df"] is None:
         raise HTTPException(status_code=400, detail="Data must be extracted and validated before running Dry Run.")
@@ -380,6 +534,13 @@ def dry_run_import(request: DryRunRequest):
             ignore_missing_mappings=ignore_missing
         )
         
+        log_action(
+            current_user["username"],
+            "Simulate Import",
+            f"Dry run simulated partner={partner_id}, report={report_id} (Status={res.get('status')})",
+            request.client.host
+        )
+        
         return {
             "status": "success",
             "import_status": res.get("status"),
@@ -394,11 +555,11 @@ def dry_run_import(request: DryRunRequest):
         raise HTTPException(status_code=500, detail=f"Dry Run failed: {str(e)}")
 
 @app.post("/api/import")
-def live_import(request: ImportRequest):
+def live_import(request: Request, payload: ImportRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Performs the live import to write records to the target DHIS2 server."""
-    partner_id = request.partner_id
-    ignore_missing = request.ignore_missing_mappings
-    mark_complete = request.mark_as_complete
+    partner_id = payload.partner_id
+    ignore_missing = payload.ignore_missing_mappings
+    mark_complete = payload.mark_as_complete
     
     if partner_id not in active_state or active_state[partner_id]["transformed_df"] is None:
         raise HTTPException(status_code=400, detail="Data must be extracted and validated before running Import.")
@@ -425,7 +586,7 @@ def live_import(request: ImportRequest):
             partner_config["destination"] = {}
         partner_config["destination"]["attribute_option_combo"] = partner_config.get("attribute_option_combo", "")
         partner_config["destination"]["data_set"] = data_set_uid
-
+ 
         res = import_to_dhis2(
             dest_client=dest_client,
             transformed_df=state["transformed_df"],
@@ -433,6 +594,14 @@ def live_import(request: ImportRequest):
             dry_run=False,
             ignore_missing_mappings=ignore_missing,
             mark_as_complete=mark_complete
+        )
+        
+        counts = res.get("import_count", {})
+        log_action(
+            current_user["username"],
+            "Live Import",
+            f"Imported partner={partner_id}, report={report_id} (Status={res.get('status')}, Imported={counts.get('imported', 0)}, Updated={counts.get('updated', 0)}, Ignored={counts.get('ignored', 0)})",
+            request.client.host
         )
         
         return {
@@ -451,7 +620,7 @@ def live_import(request: ImportRequest):
 # --- CONFIGURATIONS AND SETTINGS ENDPOINTS ---
 
 @app.get("/api/settings")
-def get_settings():
+def get_settings(current_user: Dict[str, Any] = Depends(get_current_user)):
     """Reads current credentials and system variables securely."""
     try:
         load_dotenv(os.path.join(PROJECT_ROOT, ".env"), override=True)
@@ -473,7 +642,7 @@ def get_settings():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/settings")
-def update_settings(settings: SettingsUpdate):
+def update_settings(request: Request, settings: SettingsUpdate, current_user: Dict[str, Any] = Depends(get_admin_user)):
     """Saves updated credentials to .env and updates config yaml dynamically."""
     try:
         # 1. Update destination in .env
@@ -494,6 +663,12 @@ def update_settings(settings: SettingsUpdate):
         loader.save_local_config()
             
         logger.info("Successfully persisted settings changes to local_config.yaml.")
+        log_action(
+            current_user["username"],
+            "Save Settings",
+            f"Updated Central destination URL and system settings configurations",
+            request.client.host
+        )
         return {"status": "success", "message": "Settings updated successfully."}
     except Exception as e:
         logger.error("Failed to save settings: %s", e)
@@ -502,7 +677,7 @@ def update_settings(settings: SettingsUpdate):
 # --- MAPPINGS MANAGEMENT ENDPOINTS ---
 
 @app.post("/api/mapping/upload")
-async def upload_mapping_file(file: UploadFile = File(...)):
+async def upload_mapping_file(request: Request, file: UploadFile = File(...), current_user: Dict[str, Any] = Depends(get_current_user)):
     """Handles Excel mapping upload. Saves file as mappings.xlsx globally."""
     try:
         loader = get_config_loader()
@@ -520,6 +695,12 @@ async def upload_mapping_file(file: UploadFile = File(...)):
             active_state[partner_id]["validation_report"] = None
             active_state[partner_id]["partner_config"] = get_config_loader().get_partner_config(partner_id)
             
+        log_action(
+            current_user["username"],
+            "Upload Mappings",
+            f"Uploaded new global Excel mappings.xlsx file: {file.filename}",
+            request.client.host
+        )
         return {"status": "success", "message": "Global mappings.xlsx successfully updated."}
     except Exception as e:
         logger.error("Failed to upload mapping file: %s", e)
@@ -527,7 +708,7 @@ async def upload_mapping_file(file: UploadFile = File(...)):
 
 @app.get("/api/mapping/download")
 @app.get("/api/mapping/download/{partner_id}")
-def download_mapping_file(partner_id: Optional[str] = None):
+def download_mapping_file(request: Request, partner_id: Optional[str] = None, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Serves the global mappings.xlsx file for editing."""
     try:
         loader = get_config_loader()
@@ -535,6 +716,12 @@ def download_mapping_file(partner_id: Optional[str] = None):
         if not os.path.exists(target_path):
             raise HTTPException(status_code=404, detail="Global mapping file mappings.xlsx not found.")
             
+        log_action(
+            current_user["username"],
+            "Download Mappings",
+            f"Downloaded global Excel mappings.xlsx file" + (f" for partner {partner_id}" if partner_id else ""),
+            request.client.host
+        )
         return FileResponse(
             path=target_path,
             filename="mappings.xlsx",

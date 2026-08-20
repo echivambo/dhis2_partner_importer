@@ -17,6 +17,12 @@
     <!-- DHIS2 Native Top Header Bar -->
     <header class="dhis2-header">
         <div class="dhis2-header-left">
+            <!-- Sidebar toggle button for mobile/tablet responsive layout -->
+            <button class="header-btn" id="btn-sidebar-toggle" title="Toggle Sidebar" style="margin-right: 5px; display: none;">
+                <svg viewBox="0 0 24 24" width="22" height="22">
+                    <path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" />
+                </svg>
+            </button>
             <div class="dhis2-logo-icon">
                 <svg viewBox="0 0 24 24" width="24" height="24">
                     <path fill="currentColor"
@@ -27,8 +33,14 @@
         </div>
         <div class="dhis2-header-right">
             <!-- Clear Cache Button -->
-            <button class="header-btn" id="btn-clear-browser-cache" title="Clear Browser Cache" style="margin-right: 10px; padding: 4px 8px; font-size: 0.85em; font-weight: bold; background-color: #2b394a; border: 1px solid #4a5c72; border-radius: 4px; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+            <button class="header-btn" id="btn-clear-browser-cache" title="Clear Browser Cache"
+                style="margin-right: 10px; padding: 4px 8px; font-size: 0.85em; font-weight: bold; background-color: #2b394a; border: 1px solid #4a5c72; border-radius: 4px; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 4px;">
                 🧹 Clear Cache
+            </button>
+            <!-- Logout Button -->
+            <button class="header-btn" id="btn-logout" title="Logout"
+                style="margin-right: 10px; padding: 4px 8px; font-size: 0.85em; font-weight: bold; background-color: #d83b01; border: 1px solid #ff8f70; border-radius: 4px; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                🚪 Logout
             </button>
             <!-- App Grid Icon -->
             <button class="header-btn" title="Apps">
@@ -73,6 +85,13 @@
                     </svg>
                     <span>Settings</span>
                 </button>
+                <button class="nav-tab" data-tab="logs-tab">
+                    <svg viewBox="0 0 24 24" class="nav-icon">
+                        <path fill="currentColor"
+                            d="M19,3H14.82C14.4,1.84 13.3,1 12,1C10.7,1 9.6,1.84 9.18,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M12,3A1,1 0 0,1 13,4A1,1 0 0,1 12,5A1,1 0 0,1 11,4A1,1 0 0,1 12,3M14,17H7V15H14V17M17,13H7V11H17V13M17,9H7V7H17V9Z" />
+                    </svg>
+                    <span>Audit Logs</span>
+                </button>
             </nav>
         </aside>
 
@@ -116,7 +135,8 @@
                                 <li><strong>Extract Data:</strong> Open the <strong>Import Data</strong> tab. Choose the
                                     <strong>Source Partner</strong>, the specific <strong>Report</strong>, the
                                     <strong>Year</strong>, and the <strong>Month</strong>. Click <strong>Extract
-                                        Data</strong> to fetch raw records.</li>
+                                        Data</strong> to fetch raw records.
+                                </li>
                                 <li><strong>Validate Mappings:</strong> Click <strong>Validate Mappings</strong> to
                                     translate element codes using global Excel rules. If there are unmapped UIDs, the
                                     system will allow you to download the updated Excel file, fill in the blanks, and
@@ -136,7 +156,8 @@
                         <h3>General Information</h3>
                     </div>
                     <div class="card-body">
-                        <p>This utility performs the **Extract-Transform-Load (ETL)** process of monthly facility
+                        <p>This utility performs the <strong>Extract-Transform-Load (ETL)</strong> process of monthly
+                            facility
                             reports between partner DHIS2 instances and the central destination instance.</p>
                         <p><strong>Security Tip:</strong> Connection credentials for each server are stored locally and
                             securely in the <code>.env</code> environment file.</p>
@@ -317,11 +338,68 @@
                     <div class="card-body">
                         <p>The global Excel file contains the following sheets representing mapping tables:</p>
                         <ul>
-                            <li><strong>data_elements</strong>: Mapping of Data Elements (column 1: Source UID; column 2: Destination UID; column 3: Name).</li>
-                            <li><strong>organisation_units</strong>: Mapping of Organisation Units (column 1: Source UID; column 2: Destination UID; column 3: Name; column 4: Province; column 5: Country).</li>
+                            <li><strong>data_elements</strong>: Mapping of Data Elements (column 1: Source UID; column
+                                2: Destination UID; column 3: Name).</li>
+                            <li><strong>organisation_units</strong>: Mapping of Organisation Units (column 1: Source
+                                UID; column 2: Destination UID; column 3: Name; column 4: Province; column 5: Country).
+                            </li>
                         </ul>
                         <p class="text-warning font-bold">[⚠️] Warning: Do not change the sheet names or column
                             positions to prevent loader parsing errors.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: Audit Logs -->
+            <section id="logs-tab" class="tab-panel">
+                <div class="content-header flex-row justify-between align-center">
+                    <div>
+                        <h2>Audit Logs</h2>
+                        <p>Track actions executed by authenticated users in the platform.</p>
+                    </div>
+                    <button class="btn btn-primary" id="btn-export-logs" style="display: flex; align-items: center; gap: 8px;">
+                        📥 Export Logs CSV
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="card-header border-bottom">
+                        <h3>Filter Audit Logs</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="flex-row-wrap gap-15">
+                            <div class="form-group flex-1 min-width-200">
+                                <label for="txt-log-start-date">Start Date</label>
+                                <input type="date" id="txt-log-start-date" class="form-control">
+                            </div>
+                            <div class="form-group flex-1 min-width-200">
+                                <label for="txt-log-end-date">End Date</label>
+                                <input type="date" id="txt-log-end-date" class="form-control">
+                            </div>
+                            <div class="form-group flex-row align-end gap-10" style="margin-bottom: 0;">
+                                <button type="button" class="btn btn-secondary" id="btn-filter-logs" style="height: 38px;">Apply Filters</button>
+                                <button type="button" class="btn btn-secondary" id="btn-clear-log-filters" style="height: 38px;">Reset</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card margin-top-20">
+                    <div class="card-body no-padding scroll-x">
+                        <table class="dhis2-table" id="table-audit-logs">
+                            <thead>
+                                <tr>
+                                    <th style="width: 180px;">Timestamp</th>
+                                    <th style="width: 140px;">Username</th>
+                                    <th style="width: 160px;">Action</th>
+                                    <th>Details</th>
+                                    <th style="width: 130px;">IP Address</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Injected dynamically via JS -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
@@ -372,7 +450,8 @@
                     <div class="card margin-top-20">
                         <div class="card-header border-bottom flex-row justify-between align-center">
                             <h3>Manage Partners</h3>
-                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-partner-row">+ Add Partner</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-partner-row">+ Add
+                                Partner</button>
                         </div>
                         <div class="card-body no-padding scroll-x">
                             <table class="dhis2-table" id="table-settings-partners">
@@ -395,7 +474,8 @@
                     <div class="card margin-top-20">
                         <div class="card-header border-bottom flex-row justify-between align-center">
                             <h3>Manage Source Servers</h3>
-                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-source-row">+ Add Source Server</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-source-row">+ Add Source
+                                Server</button>
                         </div>
                         <div class="card-body no-padding scroll-x">
                             <table class="dhis2-table" id="table-settings-sources">
@@ -418,7 +498,8 @@
                     <div class="card margin-top-20">
                         <div class="card-header border-bottom flex-row justify-between align-center">
                             <h3>Manage Reports / Pivot Tables</h3>
-                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-report-row">+ Add Report</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-report-row">+ Add
+                                Report</button>
                         </div>
                         <div class="card-body no-padding scroll-x">
                             <table class="dhis2-table" id="table-settings-reports">
@@ -444,6 +525,29 @@
                         <button type="submit" class="btn btn-success">Save Changes</button>
                     </div>
                 </form>
+
+                <!-- Dynamic User Management Config (Admins only) -->
+                <div class="card margin-top-20 hide" id="card-manage-users">
+                    <div class="card-header border-bottom flex-row justify-between align-center">
+                        <h3>Manage Access Users</h3>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-add-user-modal">+ Register New User</button>
+                    </div>
+                    <div class="card-body no-padding scroll-x">
+                        <table class="dhis2-table" id="table-settings-users">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Role / Access Level</th>
+                                    <th>Registered At</th>
+                                    <th style="width: 80px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Injected dynamically via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
         </main>
@@ -462,8 +566,63 @@
         </div>
     </div>
 
+    <!-- User Creation Modal Dialog -->
+    <div class="modal-overlay hide" id="modal-create-user">
+        <div class="modal-card">
+            <h3>👤 Register New Access User</h3>
+            <form id="form-create-user" class="margin-top-15 flex-column gap-15">
+                <div class="form-group">
+                    <label for="txt-new-username">Username</label>
+                    <input type="text" id="txt-new-username" class="form-control" placeholder="e.g. jdoe" required>
+                </div>
+                <div class="form-group">
+                    <label for="txt-new-password">Password</label>
+                    <input type="password" id="txt-new-password" class="form-control" placeholder="Password" required>
+                </div>
+                <div class="form-group">
+                    <label for="select-new-role">Role / Access Level</label>
+                    <select id="select-new-role" class="form-control" required>
+                        <option value="operator">Operator (Read-only setup, Run pipelines)</option>
+                        <option value="admin">Administrator (Full settings & users CRUD)</option>
+                    </select>
+                </div>
+                <div class="modal-actions margin-top-20">
+                    <button type="button" class="btn btn-secondary" id="btn-modal-user-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-success">Register User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Fullscreen Login Interface Overlay -->
+    <div class="login-wrapper" id="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">⊕</div>
+                <h1>DISC DHIS2 Data Importer</h1>
+                <p>Sign in to access the data integration middleware</p>
+            </div>
+            <form id="form-login" class="flex-column gap-15 margin-top-20">
+                <div class="form-group">
+                    <label for="txt-login-username">Username</label>
+                    <input type="text" id="txt-login-username" class="form-control" placeholder="Enter username" required>
+                </div>
+                <div class="form-group">
+                    <label for="txt-login-password">Password</label>
+                    <input type="password" id="txt-login-password" class="form-control" placeholder="Enter password" required>
+                </div>
+                <div id="login-error-msg" class="text-danger font-bold hide" style="font-size: 0.9em; text-align: center;">
+                    Invalid username or password.
+                </div>
+                <button type="submit" class="btn btn-primary margin-top-10" style="width: 100%; height: 42px; font-size: 1.05em; font-weight: bold;">
+                    Sign In
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- Script loading -->
-    <script src="/static/app.js?v=2.6"></script>
+    <script src="/static/app.js?v=2.7"></script>
 </body>
 
 </html>
