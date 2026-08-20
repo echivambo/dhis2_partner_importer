@@ -151,5 +151,45 @@ class TestDHIS2Pipeline(unittest.TestCase):
         df = extract_partner_data(client, "https://play.dhis2.org/api/analytics.csv", "202601")
         self.assertTrue(df.empty)
 
+    def test_config_loader_excel_csv(self):
+        import tempfile
+        import os
+        from src.config.config_loader import ConfigLoader
+
+        # Create a temp directory
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # 1. Test Excel Mapping Loader
+            excel_path = os.path.join(tmpdir, "test_mapping.xlsx")
+            
+            de_df = pd.DataFrame([{"Source": "src_de_1", "Dest": "dst_de_1"}])
+            ou_df = pd.DataFrame([{"Source": "src_ou_1", "Dest": "dst_ou_1"}])
+            
+            with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+                de_df.to_excel(writer, sheet_name="data_elements", index=False)
+                ou_df.to_excel(writer, sheet_name="organisation_units", index=False)
+                
+            loader = ConfigLoader()
+            excel_mappings = loader._load_excel_mappings(excel_path)
+            
+            self.assertIn("src_de_1", excel_mappings["data_elements"])
+            self.assertEqual(excel_mappings["data_elements"]["src_de_1"], "dst_de_1")
+            self.assertIn("src_ou_1", excel_mappings["organisation_units"])
+            self.assertEqual(excel_mappings["organisation_units"]["src_ou_1"], "dst_ou_1")
+            
+            # 2. Test CSV Mapping Loader (with type column)
+            csv_path = os.path.join(tmpdir, "test_mapping.csv")
+            csv_df = pd.DataFrame([
+                {"type": "data_element", "source": "src_de_csv", "destination": "dst_de_csv"},
+                {"type": "organisation_unit", "source": "src_ou_csv", "destination": "dst_ou_csv"}
+            ])
+            csv_df.to_csv(csv_path, index=False)
+            
+            csv_mappings = loader._load_csv_mappings(csv_path)
+            
+            self.assertIn("src_de_csv", csv_mappings["data_elements"])
+            self.assertEqual(csv_mappings["data_elements"]["src_de_csv"], "dst_de_csv")
+            self.assertIn("src_ou_csv", csv_mappings["organisation_units"])
+            self.assertEqual(csv_mappings["organisation_units"]["src_ou_csv"], "dst_ou_csv")
+
 if __name__ == '__main__':
     unittest.main()

@@ -23,18 +23,12 @@ services:
     volumes:
       - .:/app
     ports:
-      - "8888:8888" # Direct port mapping for Jupyter Lab (optional backup)
-      - "8501:8501" # Direct port mapping for Streamlit (optional backup)
+      - "8005:8000" # Direct port mapping for FastAPI Web Server (using 8005 to avoid host conflicts)
     labels:
       - "traefik.enable=true"
-      # Route Jupyter Lab to http://dhis2-importer.localhost
-      - "traefik.http.routers.jupyter.rule=Host(`dhis2-importer.localhost`)"
-      - "traefik.http.routers.jupyter.entrypoints=web"
-      - "traefik.http.services.jupyter.loadbalancer.server.port=8888"
-      
-      # Route Streamlit (optional) to http://dhis2-streamlit.localhost
-      - "traefik.http.routers.streamlit.rule=Host(`dhis2-streamlit.localhost`)"
-      - "traefik.http.routers.streamlit.entrypoints=web"
-      - "traefik.http.services.streamlit.loadbalancer.server.port=8501"
+      # Route Web Importer App to http://dhis2-importer.localhost
+      - "traefik.http.routers.importer.rule=Host(`dhis2-importer.localhost`)"
+      - "traefik.http.routers.importer.entrypoints=web"
+      - "traefik.http.services.importer.loadbalancer.server.port=8000"
     depends_on:
       - traefik

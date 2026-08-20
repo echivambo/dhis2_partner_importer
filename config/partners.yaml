@@ -11,7 +11,7 @@ partners:
     destination:
       data_set: "Nrl1hP8S0mR"
       attribute_option_combo: "PARTNER_AOC_UID"
-      mapping_file: "pathfinder.yaml"
+      mapping_file: "pathfinder.xlsx"
 
   MZ-PSI:
     name: "MZ-PSI"
@@ -24,4 +24,4 @@ partners:
     destination:
       data_set: "DESTINATION_DATASET_UID"
       attribute_option_combo: "PSI_AOC_UID"
-      mapping_file: "psi.yaml"
+      mapping_file: "psi.xlsx"

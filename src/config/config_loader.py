@@ -75,20 +75,118 @@ class ConfigLoader:
         if mapping_file:
             mapping_path = os.path.join(self.mappings_dir, mapping_file)
             if os.path.exists(mapping_path):
-                try:
-                    with open(mapping_path, "r", encoding="utf-8") as f:
-                        map_data = yaml.safe_load(f) or {}
-                        mappings["data_elements"] = map_data.get("data_elements", {})
-                        mappings["organisation_units"] = map_data.get("organisation_units", {})
-                        mappings["category_option_combos"] = map_data.get("category_option_combos", {})
-                    logger.debug("Successfully loaded mappings from %s", mapping_path)
-                except Exception as e:
-                    logger.error("Failed to parse mapping file %s: %s", mapping_path, e)
+                ext = os.path.splitext(mapping_file)[1].lower()
+                if ext in (".xlsx", ".xls"):
+                    mappings = self._load_excel_mappings(mapping_path)
+                elif ext == ".csv":
+                    mappings = self._load_csv_mappings(mapping_path)
+                else: # fallback to yaml
+                    try:
+                        with open(mapping_path, "r", encoding="utf-8") as f:
+                            map_data = yaml.safe_load(f) or {}
+                            mappings["data_elements"] = map_data.get("data_elements", {})
+                            mappings["organisation_units"] = map_data.get("organisation_units", {})
+                            mappings["category_option_combos"] = map_data.get("category_option_combos", {})
+                        logger.debug("Successfully loaded mappings from %s", mapping_path)
+                    except Exception as e:
+                        logger.error("Failed to parse mapping file %s: %s", mapping_path, e)
             else:
                 logger.warning("Mapping file configured but not found: %s", mapping_path)
 
         config["mappings"] = mappings
         return config
+
+    def _load_excel_mappings(self, path: str) -> Dict[str, Dict[str, str]]:
+        import pandas as pd
+        mappings = {
+            "data_elements": {},
+            "organisation_units": {},
+            "category_option_combos": {}
+        }
+        try:
+            with pd.ExcelFile(path) as xl:
+                for sheet_name in xl.sheet_names:
+                    norm_name = sheet_name.lower().strip().replace(" ", "_")
+                    target_key = None
+                    if "data_element" in norm_name:
+                        target_key = "data_elements"
+                    elif "organisation_unit" in norm_name or "org_unit" in norm_name:
+                        target_key = "organisation_units"
+                    elif "category_option_combo" in norm_name or "coc" in norm_name:
+                        target_key = "category_option_combos"
+                    
+                    if target_key:
+                        df = xl.parse(sheet_name)
+                        if not df.empty and len(df.columns) >= 2:
+                            df = df.dropna(subset=[df.columns[0], df.columns[1]])
+                            for _, row in df.iterrows():
+                                src = str(row.iloc[0]).strip()
+                                dst = str(row.iloc[1]).strip()
+                                if src and dst:
+                                    mappings[target_key][src] = dst
+            logger.info("Loaded Excel mappings from %s", path)
+        except Exception as e:
+            logger.error("Failed to load Excel mappings from %s: %s", path, e)
+        return mappings
+
+    def _load_csv_mappings(self, path: str) -> Dict[str, Dict[str, str]]:
+        import pandas as pd
+        mappings = {
+            "data_elements": {},
+            "organisation_units": {},
+            "category_option_combos": {}
+        }
+        try:
+            df = pd.read_csv(path)
+            cols_clean = [str(c).lower().strip() for c in df.columns]
+            
+            if "type" in cols_clean:
+                type_idx = cols_clean.index("type")
+                src_col = None
+                dst_col = None
+                for i, col in enumerate(cols_clean):
+                    if i == type_idx:
+                        continue
+                    if "source" in col or "src" in col:
+                        src_col = df.columns[i]
+                    elif "dest" in col or "target" in col or "dst" in col:
+                        dst_col = df.columns[i]
+                
+                other_cols = [c for i, c in enumerate(df.columns) if i != type_idx]
+                if not src_col and len(other_cols) >= 1:
+                    src_col = other_cols[0]
+                if not dst_col and len(other_cols) >= 2:
+                    dst_col = other_cols[1]
+                
+                if src_col and dst_col:
+                    df = df.dropna(subset=[src_col, dst_col])
+                    for _, row in df.iterrows():
+                        t_val = str(row[df.columns[type_idx]]).lower().strip().replace(" ", "_")
+                        src = str(row[src_col]).strip()
+                        dst = str(row[dst_col]).strip()
+                        
+                        target_key = None
+                        if "data_element" in t_val or t_val == "de":
+                            target_key = "data_elements"
+                        elif "organisation_unit" in t_val or "org_unit" in t_val or t_val == "ou":
+                            target_key = "organisation_units"
+                        elif "category_option_combo" in t_val or t_val == "coc":
+                            target_key = "category_option_combos"
+                            
+                        if target_key and src and dst:
+                            mappings[target_key][src] = dst
+            else:
+                if len(df.columns) >= 2:
+                    df = df.dropna(subset=[df.columns[0], df.columns[1]])
+                    for _, row in df.iterrows():
+                        src = str(row.iloc[0]).strip()
+                        dst = str(row.iloc[1]).strip()
+                        if src and dst:
+                            mappings["data_elements"][src] = dst
+            logger.info("Loaded CSV mappings from %s", path)
+        except Exception as e:
+            logger.error("Failed to load CSV mappings from %s: %s", path, e)
+        return mappings
 
     def get_destination_config(self) -> Dict[str, Any]:
         """Retrieve destination instance connection credentials from global environment."""

@@ -20,9 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY . .
 
-# Expose ports: 8888 for Jupyter, 8501 for Streamlit (if used)
-EXPOSE 8888
-EXPOSE 8501
+# Expose port: 8000 for the FastAPI web server
+EXPOSE 8000
 
-# Command to start Jupyter Lab by default, binding to all interfaces and allowing root
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''"]
+# Command to start the FastAPI web application
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
