@@ -77,8 +77,6 @@
                             <span class="badge" id="lbl-dest-status">Checking...</span>
                         </div>
                     </div>
-                    
-                    <!-- Dynamic Health Check status cards for reports will be appended here -->
                 </div>
 
                 <!-- Platform Instructions Guide -->
@@ -92,7 +90,7 @@
                             <ol style="margin-left: 20px; line-height: 1.6; display: flex; flex-direction: column; gap: 10px; color: #555;">
                                 <li><strong>Configure Connections:</strong> Go to the <strong>Settings</strong> tab and verify that the Destination DHIS2 credentials and Partner/Report Pivot Table links are correctly defined.</li>
                                 <li><strong>Extract Data:</strong> Open the <strong>Import Data</strong> tab. Choose the <strong>Source Partner</strong>, the specific <strong>Report</strong>, the <strong>Year</strong>, and the <strong>Month</strong>. Click <strong>Extract Data</strong> to fetch raw records.</li>
-                                <li><strong>Validate Mappings:</strong> Click <strong>Validate Mappings</strong> to translate element codes using Excel rules. If there are unmapped UIDs, the system will allow you to download an updated Excel sheet, fill in the blanks, and upload it in the <strong>Manage Mappings</strong> tab.</li>
+                                <li><strong>Validate Mappings:</strong> Click <strong>Validate Mappings</strong> to translate element codes using global Excel rules. If there are unmapped UIDs, the system will allow you to download the updated Excel file, fill in the blanks, and upload it in the <strong>Manage Mappings</strong> tab.</li>
                                 <li><strong>Simulation (Dry Run):</strong> Click <strong>Simulate Import (Dry Run)</strong> to test writing records to the target server without making permanent changes. This is highly recommended to identify conflicts.</li>
                                 <li><strong>Commit Import:</strong> Mark the confirmation check and click <strong>Import to Destination</strong> to write the final values permanently.</li>
                             </ol>
@@ -257,7 +255,7 @@
             <section id="mappings-tab" class="tab-panel">
                 <div class="content-header">
                     <h2>Mappings Manager</h2>
-                    <p>Replace or export code translation rules for the active partner using Excel.</p>
+                    <p>Replace or export translation rules using the global Excel mapping file.</p>
                 </div>
 
                 <div class="dashboard-grid">
@@ -267,8 +265,8 @@
                             <h3>1. Download Current Sheet</h3>
                         </div>
                         <div class="card-body text-center">
-                            <p>Download the corresponding sheet to review data element and organisation unit mappings.</p>
-                            <button id="btn-download-mapping" class="btn btn-secondary margin-top-15" disabled>
+                            <p>Download the global mapping sheet to review translation rules for elements, units, and combos.</p>
+                            <button id="btn-download-mapping" class="btn btn-secondary margin-top-15">
                                 📥 Download Mapping Sheet (.xlsx)
                             </button>
                         </div>
@@ -280,7 +278,7 @@
                             <h3>2. Upload Edited Sheet</h3>
                         </div>
                         <div class="card-body">
-                            <p>Upload the revised sheet to apply new codes immediately.</p>
+                            <p>Upload the revised global Excel file to apply new codes immediately.</p>
                             
                             <!-- Custom Drag and Drop file selector -->
                             <div class="drag-drop-area" id="mapping-drag-area">
@@ -298,11 +296,11 @@
                         <h3>Tips for Excel Editing</h3>
                     </div>
                     <div class="card-body">
-                        <p>The Excel file contains the following sheets representing mapping tables:</p>
+                        <p>The global Excel file contains the following sheets representing mapping tables:</p>
                         <ul>
-                            <li><strong>data_elements</strong>: Mapping of Data Elements (column 1: Partner UID; column 2: Corresponding Destination UID).</li>
-                            <li><strong>organisation_units</strong>: Mapping of Organisation Units (column 1: Partner UID; column 2: Corresponding Destination UID; column 3: Name; column 4: District; column 5: County).</li>
-                            <li><strong>category_option_combos</strong>: Mapping of category option combos (default is <code>default</code> ➔ <code>DEFAULT_COC_UID</code>).</li>
+                            <li><strong>data_elements</strong>: Mapping of Data Elements (column 1: Source UID; column 2: Destination UID; column 3: Name).</li>
+                            <li><strong>organisation_units</strong>: Mapping of Organisation Units (column 1: Source UID; column 2: Destination UID; column 3: Name; column 4: District; column 5: Country).</li>
+                            <li><strong>category_option_combos</strong>: Mapping of category option combos (column 1: Source UID; column 2: Destination UID; column 3: Name).</li>
                         </ul>
                         <p class="text-warning font-bold">[⚠️] Warning: Do not change the sheet names or column positions to prevent loader parsing errors.</p>
                     </div>
@@ -361,8 +359,6 @@
                                         <th>Partner ID</th>
                                         <th>Display Name</th>
                                         <th>Attribute Option Combo</th>
-                                        <th>DataSet UID</th>
-                                        <th>Mapping File (.xlsx)</th>
                                         <th style="width: 80px;">Action</th>
                                     </tr>
                                 </thead>
@@ -386,6 +382,7 @@
                                         <th>Report ID</th>
                                         <th>Report Name</th>
                                         <th>Pivot Table URL (must contain {period})</th>
+                                        <th>Destination DataSet UID</th>
                                         <th>Source Username</th>
                                         <th>Source Password</th>
                                         <th style="width: 80px;">Action</th>

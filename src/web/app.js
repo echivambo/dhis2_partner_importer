@@ -1,7 +1,7 @@
 /**
  * DHIS2 Partner Importer - Frontend App Logic
  * Integrates with FastAPI REST endpoints, handles state management,
- * UI Tab switching, workflow wizard, file upload, and dynamic settings.
+ * UI Tab switching, workflow wizard, global file upload, and dynamic settings.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -95,7 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         systemLogs.push(formattedMsg);
         consoleLogs.textContent = systemLogs.join('');
-        // Scroll console box to bottom
         consoleLogs.scrollTop = consoleLogs.scrollHeight;
     }
 
@@ -114,11 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- API: HEALTH CHECK STATUSES ---
     async function runConnectionHealthChecks() {
         logToConsole("Running connection health checks...", "info");
-        
-        // Show loading status for destination
         updateHealthCard('health-dest-card', 'Checking...', 'yellow');
 
-        // Dynamically build/render cards for all configured reports first
+        // Dynamically build health check cards for reports
         const grid = document.getElementById('dashboard-health-grid');
         const destCard = document.getElementById('health-dest-card');
         grid.innerHTML = '';
@@ -145,7 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (data.status === 'success') {
-                // Update Destination status
                 const dest = data.destination;
                 if (dest.status === 'Connected') {
                     updateHealthCard('health-dest-card', `Online (v${dest.version})`, 'green', dest.error);
@@ -153,7 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateHealthCard('health-dest-card', 'Offline', 'red', dest.error);
                 }
 
-                // Update Reports status dynamically
                 const reports = data.reports;
                 Object.keys(reports).forEach(reportId => {
                     const r_status = reports[reportId];
@@ -207,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadedPartners = data.partners || {};
                 loadedReports = data.reports || {};
 
-                // 1. Populate Partners dropdown
+                // Populate Partners dropdown
                 selectPartner.innerHTML = '<option value="">Select a partner...</option>';
                 Object.keys(loadedPartners).forEach(key => {
                     const opt = document.createElement('option');
@@ -216,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     selectPartner.appendChild(opt);
                 });
 
-                // 2. Populate Reports dropdown
+                // Populate Reports dropdown
                 selectReport.innerHTML = '<option value="">Select a report...</option>';
                 Object.keys(loadedReports).forEach(key => {
                     const opt = document.createElement('option');
@@ -225,7 +220,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     selectReport.appendChild(opt);
                 });
 
-                // Set Destination label
                 document.getElementById('lbl-dest-url').textContent = "Target Central Instance";
             }
         } catch (error) {
@@ -242,10 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const partnerObj = loadedPartners[activePartnerId];
             lblPartnerAoc.textContent = partnerObj.attribute_option_combo || 'None';
             logToConsole(`Active partner switched to: ${activePartnerId}`, "info");
-            btnDownloadMapping.removeAttribute('disabled');
         } else {
             lblPartnerAoc.textContent = 'None';
-            btnDownloadMapping.setAttribute('disabled', 'true');
         }
     });
 
@@ -271,7 +263,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btnDryRun.setAttribute('disabled', 'true');
         btnImport.setAttribute('disabled', 'true');
         
-        // Clear active wizard states
         document.querySelectorAll('.wizard-step').forEach(step => {
             step.className = 'wizard-step';
             if (step.id === 'step-extract') step.classList.add('active');
@@ -292,7 +283,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const periodVal = `${selectedYear}${selectedMonth}`;
         logToConsole(`Starting extraction for partner ${activePartnerId} using report ${activeReportId} for period ${periodVal}...`, "info");
         pipelineStatusText.textContent = "Extracting records from source pivot table...";
-        
         btnExtract.setAttribute('disabled', 'true');
         
         try {
@@ -314,7 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 document.getElementById('step-extract').className = 'wizard-step completed';
                 document.getElementById('step-validate').className = 'wizard-step active';
-                
                 btnValidate.removeAttribute('disabled');
             } else {
                 throw new Error(data.detail || "Server extraction failed.");
@@ -331,7 +320,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btnValidate.addEventListener('click', async () => {
         logToConsole("Running UID mappings translation and validation rules...", "info");
         pipelineStatusText.textContent = "Translating codes and validating mappings...";
-        
         btnValidate.setAttribute('disabled', 'true');
         validationAlertBox.classList.add('hide');
         
@@ -345,7 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (res.ok && data.status === 'success') {
                 logToConsole("Validation step completed.", "info");
-                
                 renderPreviewTable(data.preview);
                 previewCard.classList.remove('hide');
                 
@@ -355,7 +342,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     document.getElementById('step-validate').className = 'wizard-step completed';
                     document.getElementById('step-dryrun').className = 'wizard-step active';
-                    
                     btnDryRun.removeAttribute('disabled');
                     btnImport.removeAttribute('disabled');
                 } else {
@@ -415,11 +401,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${deListHtml}
                     ${ouListHtml}
                 </ul>
-                <a href="/api/mapping/download/${activePartnerId}?t=${Date.now()}" download style="background-color: #d83b01; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block; font-size: 0.9em; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <a href="/api/mapping/download?t=${Date.now()}" download style="background-color: #d83b01; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block; font-size: 0.9em; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                     📥 Download Updated Mapping Sheet
                 </a>
                 <p style="margin: 10px 0 0 0; font-size: 0.8em; color: #555;">
-                    Open the file in Excel, fill in the blanks in the <strong>Destination UID</strong>, <strong>Name</strong>, <strong>District</strong>, and <strong>County</strong> columns, save it, and upload it using the mappings manager.
+                    Open the file in Excel, fill in the blanks in the <strong>Destination UID</strong> and <strong>Name</strong> columns (along with <strong>District</strong> and <strong>Country</strong> for Organisation Units), save it, and upload it using the mappings manager.
                 </p>
             </div>
         `;
@@ -430,7 +416,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btnDryRun.addEventListener('click', async () => {
         logToConsole("Starting Dry Run import simulation to target server...", "info");
         pipelineStatusText.textContent = "Simulating data write on DHIS2...";
-        
         btnDryRun.setAttribute('disabled', 'true');
         const ignoreMissing = chkModalIgnore.checked;
         
@@ -447,7 +432,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 logToConsole(`Summary: Extracted=${data.records_extracted}, Mapped=${data.records_transformed}, MarkComplete=${data.will_mark_complete}`, "info");
                 
                 pipelineStatusText.textContent = `Simulation completed! Status: ${data.import_status}. Ready for definitive Import.`;
-                
                 document.getElementById('step-dryrun').className = 'wizard-step completed';
                 document.getElementById('step-import').className = 'wizard-step active';
             } else {
@@ -480,7 +464,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         logToConsole("Executing LIVE import to target DHIS2 server...", "warning");
         pipelineStatusText.textContent = "Executing final data import...";
-        
         btnImport.setAttribute('disabled', 'true');
         btnDryRun.setAttribute('disabled', 'true');
         
@@ -526,17 +509,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- MAPPINGS MANAGEMENT ---
 
+    // Always enabled now as it downloads global mappings.xlsx
     btnDownloadMapping.addEventListener('click', () => {
-        if (!activePartnerId) return;
-        logToConsole(`Downloading current mapping file for ${activePartnerId}...`, "info");
-        window.location.href = `/api/mapping/download/${activePartnerId}`;
+        logToConsole("Downloading global mappings.xlsx file...", "info");
+        window.location.href = "/api/mapping/download";
     });
 
     mappingDragArea.addEventListener('click', () => {
-        if (!activePartnerId) {
-            alert("Please select a partner before uploading a mapping file.");
-            return;
-        }
         fileMappingUpload.click();
     });
 
@@ -552,10 +531,6 @@ document.addEventListener('DOMContentLoaded', () => {
     mappingDragArea.addEventListener('drop', (e) => {
         e.preventDefault();
         mappingDragArea.classList.remove('drag-over');
-        if (!activePartnerId) {
-            alert("Please select a partner before uploading a mapping file.");
-            return;
-        }
         if (e.dataTransfer.files.length > 0) {
             handleMappingFileSelect(e.dataTransfer.files[0]);
         }
@@ -569,10 +544,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleMappingFileSelect(file) {
         uploadFileInfo.textContent = `Uploading ${file.name}...`;
-        logToConsole(`Uploading mapping file: ${file.name} for partner ${activePartnerId}...`, "info");
+        logToConsole(`Uploading global mapping file: ${file.name}...`, "info");
 
         const formData = new FormData();
-        formData.append('partner_id', activePartnerId);
         formData.append('file', file);
 
         try {
@@ -583,11 +557,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (res.ok && data.status === 'success') {
-                uploadFileInfo.textContent = `✓ Mapping '${file.name}' uploaded successfully!`;
+                uploadFileInfo.textContent = `✓ Global mapping sheet successfully updated!`;
                 uploadFileInfo.className = "margin-top-10 text-center font-bold text-success";
-                logToConsole(`Mapping uploaded and applied successfully: ${file.name}`, "success");
+                logToConsole("Global mapping file uploaded and applied successfully.", "success");
                 fileMappingUpload.value = "";
                 
+                // Trigger re-validation if active
                 const isExtractDone = document.getElementById('step-extract').classList.contains('completed');
                 if (isExtractDone) {
                     btnValidate.click();
@@ -613,7 +588,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.status === 'success') {
                 const settings = data.settings;
                 
-                // Populate Destination details
                 txtDestUrl.value = settings.destination_url;
                 txtDestUsername.value = settings.destination_username;
                 txtDestPassword.value = settings.destination_password;
@@ -637,18 +611,16 @@ document.addEventListener('DOMContentLoaded', () => {
         tablePartnersBody.innerHTML = '';
         Object.keys(partners).forEach(pId => {
             const partner = partners[pId];
-            appendPartnerRow(pId, partner.name || "", partner.attribute_option_combo || "", partner.data_set || "", partner.mapping_file || "");
+            appendPartnerRow(pId, partner.name || "", partner.attribute_option_combo || "");
         });
     }
 
-    function appendPartnerRow(id = "", name = "", aoc = "", dataSet = "", mapping = "") {
+    function appendPartnerRow(id = "", name = "", aoc = "") {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><input type="text" class="form-control val-partner-id" value="${id}" placeholder="e.g. MZ-PSI" style="font-family: monospace;" required></td>
             <td><input type="text" class="form-control val-partner-name" value="${name}" placeholder="e.g. MZ-PSI" required></td>
             <td><input type="text" class="form-control val-partner-aoc" value="${aoc}" placeholder="e.g. PSI_AOC_UID" style="font-family: monospace;" required></td>
-            <td><input type="text" class="form-control val-partner-dataset" value="${dataSet}" placeholder="e.g. DataSet UID" style="font-family: monospace;" required></td>
-            <td><input type="text" class="form-control val-partner-mapping" value="${mapping}" placeholder="e.g. psi.xlsx" style="font-family: monospace;" required></td>
             <td><button type="button" class="btn btn-danger btn-sm btn-delete-row">Delete</button></td>
         `;
         tablePartnersBody.appendChild(tr);
@@ -658,16 +630,17 @@ document.addEventListener('DOMContentLoaded', () => {
         tableReportsBody.innerHTML = '';
         Object.keys(reports).forEach(rId => {
             const r = reports[rId];
-            appendReportRow(rId, r.name || "", r.pivot_table_url || "", r.username || "", r.password || "");
+            appendReportRow(rId, r.name || "", r.pivot_table_url || "", r.data_set || "", r.username || "", r.password || "");
         });
     }
 
-    function appendReportRow(id = "", name = "", url = "", user = "", pwd = "") {
+    function appendReportRow(id = "", name = "", url = "", dataSet = "", user = "", pwd = "") {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><input type="text" class="form-control val-report-id" value="${id}" placeholder="e.g. psi_monthly" style="font-family: monospace;" required></td>
             <td><input type="text" class="form-control val-report-name" value="${name}" placeholder="e.g. PSI Monthly Report" required></td>
             <td><input type="text" class="form-control val-report-url" value="${url}" placeholder="e.g. https://...pe={period}..." required></td>
+            <td><input type="text" class="form-control val-report-dataset" value="${dataSet}" placeholder="e.g. Target DataSet UID" style="font-family: monospace;" required></td>
             <td><input type="text" class="form-control val-report-username" value="${user}" placeholder="Source Username"></td>
             <td><input type="password" class="form-control val-report-password" value="${pwd}" placeholder="Source Password"></td>
             <td><button type="button" class="btn btn-danger btn-sm btn-delete-row">Delete</button></td>
@@ -675,11 +648,9 @@ document.addEventListener('DOMContentLoaded', () => {
         tableReportsBody.appendChild(tr);
     }
 
-    // Dynamic row addition triggers
     btnAddPartnerRow.addEventListener('click', () => appendPartnerRow());
     btnAddReportRow.addEventListener('click', () => appendReportRow());
 
-    // Row deletion triggers (event delegation)
     tablePartnersBody.addEventListener('click', (e) => {
         if (e.target.classList.contains('btn-delete-row')) {
             e.target.closest('tr').remove();
@@ -696,12 +667,11 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchSettings();
     });
 
-    // Form submit settings
     formSettings.addEventListener('submit', async (e) => {
         e.preventDefault();
         logToConsole("Saving connection settings...", "info");
 
-        // 1. Gather Partners map from DOM table rows
+        // 1. Gather Partners map
         const partnersMap = {};
         const pRows = tablePartnersBody.querySelectorAll('tr');
         let hasPartnerErrors = false;
@@ -710,22 +680,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const pId = row.querySelector('.val-partner-id').value.trim();
             const pName = row.querySelector('.val-partner-name').value.trim();
             const pAoc = row.querySelector('.val-partner-aoc').value.trim();
-            const pDataSet = row.querySelector('.val-partner-dataset').value.trim();
-            const pMapping = row.querySelector('.val-partner-mapping').value.trim();
 
             if (pId) {
                 partnersMap[pId] = {
                     name: pName,
-                    attribute_option_combo: pAoc,
-                    data_set: pDataSet,
-                    mapping_file: pMapping
+                    attribute_option_combo: pAoc
                 };
             } else {
                 hasPartnerErrors = true;
             }
         });
 
-        // 2. Gather Reports map from DOM table rows
+        // 2. Gather Reports map
         const reportsMap = {};
         const rRows = tableReportsBody.querySelectorAll('tr');
         let hasReportErrors = false;
@@ -734,6 +700,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const rId = row.querySelector('.val-report-id').value.trim();
             const rName = row.querySelector('.val-report-name').value.trim();
             const rUrl = row.querySelector('.val-report-url').value.trim();
+            const rDataSet = row.querySelector('.val-report-dataset').value.trim();
             const rUser = row.querySelector('.val-report-username').value.trim();
             const rPwd = row.querySelector('.val-report-password').value.trim();
 
@@ -741,6 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 reportsMap[rId] = {
                     name: rName,
                     pivot_table_url: rUrl,
+                    data_set: rDataSet,
                     username: rUser,
                     password: rPwd
                 };
@@ -775,8 +743,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok && data.status === 'success') {
                 logToConsole("Settings updated successfully.", "success");
                 alert("Settings saved successfully!");
-                await fetchPartnersAndReports(); // Refresh local list state
-                await runConnectionHealthChecks(); // Refresh health cards on dashboard
+                await fetchPartnersAndReports();
+                await runConnectionHealthChecks();
             } else {
                 throw new Error(data.detail || "Failed to update settings.");
             }
@@ -786,6 +754,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Start App
     initApp();
 });

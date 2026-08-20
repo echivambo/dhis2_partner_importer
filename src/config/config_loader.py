@@ -51,41 +51,26 @@ class ConfigLoader:
 
     def get_partner_config(self, partner_id: str) -> Dict[str, Any]:
         """
-        Retrieve partner configuration and load partner mapping files.
+        Retrieve partner configuration and load global mapping file.
         """
         if partner_id not in self._partners_config:
             raise KeyError(f"Partner '{partner_id}' not found in configuration.")
 
         config = self._partners_config[partner_id].copy()
 
-        # Load partner-specific mappings
-        mapping_file = config.get("mapping_file") or config.get("destination", {}).get("mapping_file")
+        # Load global mappings
+        mapping_file = "mappings.xlsx"
         mappings = {
             "data_elements": {},
             "organisation_units": {},
             "category_option_combos": {}
         }
         
-        if mapping_file:
-            mapping_path = os.path.join(self.mappings_dir, mapping_file)
-            if os.path.exists(mapping_path):
-                ext = os.path.splitext(mapping_file)[1].lower()
-                if ext in (".xlsx", ".xls"):
-                    mappings = self._load_excel_mappings(mapping_path)
-                elif ext == ".csv":
-                    mappings = self._load_csv_mappings(mapping_path)
-                else: # fallback to yaml
-                    try:
-                        with open(mapping_path, "r", encoding="utf-8") as f:
-                            map_data = yaml.safe_load(f) or {}
-                            mappings["data_elements"] = map_data.get("data_elements", {})
-                            mappings["organisation_units"] = map_data.get("organisation_units", {})
-                            mappings["category_option_combos"] = map_data.get("category_option_combos", {})
-                        logger.debug("Successfully loaded mappings from %s", mapping_path)
-                    except Exception as e:
-                        logger.error("Failed to parse mapping file %s: %s", mapping_path, e)
-            else:
-                logger.warning("Mapping file configured but not found: %s", mapping_path)
+        mapping_path = os.path.join(self.mappings_dir, mapping_file)
+        if os.path.exists(mapping_path):
+            mappings = self._load_excel_mappings(mapping_path)
+        else:
+            logger.warning("Global mapping file mappings.xlsx not found at: %s", mapping_path)
 
         config["mappings"] = mappings
         return config

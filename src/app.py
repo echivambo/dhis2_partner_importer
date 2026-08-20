@@ -5,7 +5,7 @@ This module implements the FastAPI backend for the standalone web application.
 It exposes REST endpoints for:
 1. Fetching partner configurations and running health checks on connections.
 2. Managing the ETL pipeline (extracting, transforming/validating, running dry run, and importing).
-3. Downloading and uploading Excel/CSV mapping configurations.
+3. Downloading and uploading Excel mapping configurations.
 4. Managing application settings (.env credentials and partners/reports yaml config) dynamically.
 
 Run locally using:
@@ -86,8 +86,8 @@ class SettingsUpdate(BaseModel):
     destination_password: str
     destination_pat: Optional[str] = ""
     verify_ssl: bool = True
-    partners: Dict[str, Dict[str, Any]]  # Key: partner ID, Value: partner data
-    reports: Dict[str, Dict[str, Any]]   # Key: report ID, Value: report data
+    partners: Dict[str, Dict[str, Any]]  # Key: partner ID, Value: partner data (name, attribute_option_combo)
+    reports: Dict[str, Dict[str, Any]]   # Key: report ID, Value: report data (name, pivot_table_url, data_set, username, password)
 
 # --- CORE ENDPOINTS ---
 
@@ -103,9 +103,7 @@ def list_partners():
             config = loader._partners_config.get(name, {})
             partners_data[name] = {
                 "name": config.get("name"),
-                "attribute_option_combo": config.get("attribute_option_combo"),
-                "data_set": config.get("data_set"),
-                "mapping_file": config.get("mapping_file")
+                "attribute_option_combo": config.get("attribute_option_combo")
             }
             
         # Build reports map
@@ -113,7 +111,8 @@ def list_partners():
         for name, r_config in loader.get_reports().items():
             reports_data[name] = {
                 "name": r_config.get("name"),
-                "pivot_table_url": r_config.get("pivot_table_url")
+                "pivot_table_url": r_config.get("pivot_table_url"),
+                "data_set": r_config.get("data_set")
             }
             
         return {
@@ -232,7 +231,8 @@ def extract_data(request: ExtractRequest):
             "transformed_df": None,
             "validation_report": None,
             "period": period,
-            "partner_config": partner_config
+            "partner_config": partner_config,
+            "report_id": report_id
         }
         
         unique_de = raw_df['data_element'].nunique() if not raw_df.empty else 0
@@ -324,14 +324,16 @@ def dry_run_import(request: DryRunRequest):
             verify_ssl=dest.get("verify_ssl", True)
         )
         
-        # Extract direct AOC from partner config or fall back to nested
-        partner_config = state["partner_config"]
-        # Overwrite destination attribute option combo in partner config for import processor
-        if "attribute_option_combo" in partner_config:
-            if "destination" not in partner_config:
-                partner_config["destination"] = {}
-            partner_config["destination"]["attribute_option_combo"] = partner_config["attribute_option_combo"]
-            partner_config["destination"]["data_set"] = partner_config.get("data_set", "")
+        # Get active report dataset UID mapping
+        report_id = state.get("report_id")
+        report_config = loader.get_reports().get(report_id, {})
+        data_set_uid = report_config.get("data_set", "")
+        
+        partner_config = state["partner_config"].copy()
+        if "destination" not in partner_config:
+            partner_config["destination"] = {}
+        partner_config["destination"]["attribute_option_combo"] = partner_config.get("attribute_option_combo", "")
+        partner_config["destination"]["data_set"] = data_set_uid
 
         res = import_to_dhis2(
             dest_client=dest_client,
@@ -376,13 +378,15 @@ def live_import(request: ImportRequest):
             verify_ssl=dest.get("verify_ssl", True)
         )
         
-        partner_config = state["partner_config"]
-        # Align direct config attributes to target importer fields
-        if "attribute_option_combo" in partner_config:
-            if "destination" not in partner_config:
-                partner_config["destination"] = {}
-            partner_config["destination"]["attribute_option_combo"] = partner_config["attribute_option_combo"]
-            partner_config["destination"]["data_set"] = partner_config.get("data_set", "")
+        report_id = state.get("report_id")
+        report_config = loader.get_reports().get(report_id, {})
+        data_set_uid = report_config.get("data_set", "")
+        
+        partner_config = state["partner_config"].copy()
+        if "destination" not in partner_config:
+            partner_config["destination"] = {}
+        partner_config["destination"]["attribute_option_combo"] = partner_config.get("attribute_option_combo", "")
+        partner_config["destination"]["data_set"] = data_set_uid
 
         res = import_to_dhis2(
             dest_client=dest_client,
@@ -409,7 +413,7 @@ def live_import(request: ImportRequest):
 
 @app.get("/api/settings")
 def get_settings():
-    """Reads current credentials and system variables from the local .env and partners.yaml files securely."""
+    """Reads current credentials and system variables securely."""
     try:
         load_dotenv(os.path.join(PROJECT_ROOT, ".env"), override=True)
         loader = get_config_loader()
@@ -460,78 +464,46 @@ def update_settings(settings: SettingsUpdate):
 # --- MAPPINGS MANAGEMENT ENDPOINTS ---
 
 @app.post("/api/mapping/upload")
-async def upload_mapping_file(partner_id: str = Form(...), file: UploadFile = File(...)):
-    """Handles Excel/CSV mapping uploads. Saves files and updates configs dynamically."""
+async def upload_mapping_file(file: UploadFile = File(...)):
+    """Handles Excel mapping upload. Saves file as mappings.xlsx globally."""
     try:
         loader = get_config_loader()
-        partner_config = loader.get_partner_config(partner_id)
-        target_mapping_file = partner_config.get("mapping_file") or partner_config.get("destination", {}).get("mapping_file")
+        target_path = os.path.join(loader.mappings_dir, "mappings.xlsx")
         
-        if not target_mapping_file:
-            raise HTTPException(status_code=400, detail="No mapping file configured for selected partner.")
-            
-        filename = file.filename
-        ext_uploaded = os.path.splitext(filename)[1].lower()
-        ext_configured = os.path.splitext(target_mapping_file)[1].lower()
-        
-        # Resolve target path
-        if ext_uploaded != ext_configured:
-            # Update partners.yaml reference if extension changed
-            base_name = os.path.splitext(target_mapping_file)[0]
-            new_mapping_file = base_name + ext_uploaded
-            target_path = os.path.join(loader.mappings_dir, new_mapping_file)
-            
-            # Write to partners.yaml
-            loader._partners_config[partner_id]["mapping_file"] = new_mapping_file
-            with open(loader.partners_file, "w", encoding="utf-8") as f:
-                yaml.dump({
-                    "partners": loader._partners_config,
-                    "reports": loader._reports_config
-                }, f, default_flow_style=False)
-            logger.info("Updated partners.yaml mapping_file reference to %s", new_mapping_file)
-            target_mapping_file = new_mapping_file
-        else:
-            target_path = os.path.join(loader.mappings_dir, target_mapping_file)
-            
         # Save content
         with open(target_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
             
-        logger.info("Mapping file '%s' uploaded and written to %s", filename, target_path)
+        logger.info("Global mapping file uploaded and written to %s", target_path)
         
         # Clear cached transform state to force re-evaluation
-        if partner_id in active_state:
+        for partner_id in active_state:
             active_state[partner_id]["transformed_df"] = None
             active_state[partner_id]["validation_report"] = None
             active_state[partner_id]["partner_config"] = get_config_loader().get_partner_config(partner_id)
             
-        return {"status": "success", "message": f"Mapping file '{filename}' successfully updated."}
+        return {"status": "success", "message": "Global mappings.xlsx successfully updated."}
     except Exception as e:
         logger.error("Failed to upload mapping file: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/mapping/download")
 @app.get("/api/mapping/download/{partner_id}")
-def download_mapping_file(partner_id: str):
-    """Serves the active Excel/CSV mapping file for editing."""
+def download_mapping_file(partner_id: Optional[str] = None):
+    """Serves the global mappings.xlsx file for editing."""
     try:
         loader = get_config_loader()
-        partner_config = loader.get_partner_config(partner_id)
-        target_mapping_file = partner_config.get("mapping_file") or partner_config.get("destination", {}).get("mapping_file")
-        
-        if not target_mapping_file:
-            raise HTTPException(status_code=404, detail="Mapping file not found for selected partner.")
-            
-        target_path = os.path.join(loader.mappings_dir, target_mapping_file)
+        target_path = os.path.join(loader.mappings_dir, "mappings.xlsx")
         if not os.path.exists(target_path):
-            raise HTTPException(status_code=404, detail="Configuration mapping file does not exist on disk.")
+            raise HTTPException(status_code=404, detail="Global mapping file mappings.xlsx not found.")
             
         return FileResponse(
             path=target_path,
-            filename=target_mapping_file,
+            filename="mappings.xlsx",
             media_type="application/octet-stream"
         )
     except Exception as e:
-        logger.error("Failed downloading mapping: %s", e)
+        logger.error("Failed downloading mappings.xlsx: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- HELPER UTILITIES ---
@@ -567,99 +539,102 @@ def save_env_variables(vars_dict: dict):
     logger.info("Saved credentials to .env")
 
 def generate_template_with_missing_keys(partner_id: str, state: dict):
-    """Generates an Excel/CSV mapping template pre-populated with Name, District, and County columns for Org Units."""
+    """Generates/Updates mappings.xlsx with newly discovered source keys, preserving existing descriptions."""
     try:
         loader = get_config_loader()
-        partner_config = state["partner_config"]
-        mapping_file = partner_config.get("mapping_file") or partner_config.get("destination", {}).get("mapping_file")
-        if not mapping_file:
-            return
-            
-        mapping_path = os.path.join(loader.mappings_dir, mapping_file)
+        mapping_path = os.path.join(loader.mappings_dir, "mappings.xlsx")
         report = state["validation_report"]
+        partner_config = state["partner_config"]
         
         current_de_map = partner_config["mappings"].get("data_elements", {})
         current_ou_map = partner_config["mappings"].get("organisation_units", {})
         current_coc_map = partner_config["mappings"].get("category_option_combos", {})
         
-        # Compile unique Data Elements rows
-        de_rows = [{"Source UID": src, "Destination UID": dst} for src, dst in current_de_map.items()]
-        for src in report.missing_data_elements:
-            if src not in current_de_map:
-                de_rows.append({"Source UID": src, "Destination UID": ""})
-                
-        # Read existing Excel mapping file to preserve existing descriptions (name, district, county) if it is xlsx
+        # Read existing details (Names, Districts, Countries) from mappings.xlsx if exists
+        existing_de_details = {}
         existing_ou_details = {}
-        ext = os.path.splitext(mapping_file)[1].lower()
+        existing_coc_details = {}
         
-        if ext in (".xlsx", ".xls") and os.path.exists(mapping_path):
+        if os.path.exists(mapping_path):
             try:
                 with pd.ExcelFile(mapping_path) as xl:
                     sheet_names_clean = [s.lower().strip().replace(" ", "_") for s in xl.sheet_names]
+                    
+                    # Data elements sheet
+                    if "data_elements" in sheet_names_clean:
+                        idx = sheet_names_clean.index("data_elements")
+                        df_de = xl.parse(xl.sheet_names[idx])
+                        for _, row in df_de.iterrows():
+                            src = str(row.iloc[0]).strip()
+                            name = str(row.iloc[2]).strip() if len(row) > 2 and not pd.isna(row.iloc[2]) else ""
+                            existing_de_details[src] = {"Name": name}
+                            
+                    # Organisation units sheet
                     if "organisation_units" in sheet_names_clean:
                         idx = sheet_names_clean.index("organisation_units")
-                        sheet_name = xl.sheet_names[idx]
-                        existing_df = xl.parse(sheet_name)
-                        if not existing_df.empty and len(existing_df.columns) >= 2:
-                            for _, row in existing_df.iterrows():
-                                src_val = str(row.iloc[0]).strip()
-                                name_val = str(row.iloc[2]).strip() if len(row) > 2 and not pd.isna(row.iloc[2]) else ""
-                                dist_val = str(row.iloc[3]).strip() if len(row) > 3 and not pd.isna(row.iloc[3]) else ""
-                                cty_val = str(row.iloc[4]).strip() if len(row) > 4 and not pd.isna(row.iloc[4]) else ""
-                                existing_ou_details[src_val] = {
-                                    "Name": name_val,
-                                    "District": dist_val,
-                                    "County": cty_val
-                                }
+                        df_ou = xl.parse(xl.sheet_names[idx])
+                        for _, row in df_ou.iterrows():
+                            src = str(row.iloc[0]).strip()
+                            name = str(row.iloc[2]).strip() if len(row) > 2 and not pd.isna(row.iloc[2]) else ""
+                            district = str(row.iloc[3]).strip() if len(row) > 3 and not pd.isna(row.iloc[3]) else ""
+                            country = str(row.iloc[4]).strip() if len(row) > 4 and not pd.isna(row.iloc[4]) else ""
+                            existing_ou_details[src] = {"Name": name, "District": district, "Country": country}
+                            
+                    # Category option combos sheet
+                    if "category_option_combos" in sheet_names_clean:
+                        idx = sheet_names_clean.index("category_option_combos")
+                        df_coc = xl.parse(xl.sheet_names[idx])
+                        for _, row in df_coc.iterrows():
+                            src = str(row.iloc[0]).strip()
+                            name = str(row.iloc[2]).strip() if len(row) > 2 and not pd.isna(row.iloc[2]) else ""
+                            existing_coc_details[src] = {"Name": name}
             except Exception as e:
-                logger.warning("Could not parse existing organization unit details: %s", e)
-
-        # Compile unique Organisation Units rows with extra columns
+                logger.warning("Could not read existing mapping details: %s", e)
+                
+        # Assemble Data Elements rows
+        de_rows = []
+        for src, dst in current_de_map.items():
+            de_rows.append({
+                "Source UID": src,
+                "Destination UID": dst,
+                "Name": existing_de_details.get(src, {}).get("Name", "")
+            })
+        for src in report.missing_data_elements:
+            if src not in current_de_map:
+                de_rows.append({"Source UID": src, "Destination UID": "", "Name": ""})
+                
+        # Assemble Organisation Units rows
         ou_rows = []
         for src, dst in current_ou_map.items():
-            details = existing_ou_details.get(src, {"Name": "", "District": "", "County": ""})
+            details = existing_ou_details.get(src, {"Name": "", "District": "", "Country": ""})
             ou_rows.append({
                 "Source UID": src,
                 "Destination UID": dst,
-                "Name": details["Name"],
-                "District": details["District"],
-                "County": details["County"]
+                "Name": details.get("Name", ""),
+                "District": details.get("District", ""),
+                "Country": details.get("Country", "")
             })
         for src in report.missing_organisation_units:
             if src not in current_ou_map:
-                ou_rows.append({
-                    "Source UID": src,
-                    "Destination UID": "",
-                    "Name": "",
-                    "District": "",
-                    "County": ""
-                })
+                ou_rows.append({"Source UID": src, "Destination UID": "", "Name": "", "District": "", "Country": ""})
                 
-        coc_rows = [{"Source UID": src, "Destination UID": dst} for src, dst in current_coc_map.items()]
+        # Assemble Category Option Combos rows
+        coc_rows = []
+        for src, dst in current_coc_map.items():
+            coc_rows.append({
+                "Source UID": src,
+                "Destination UID": dst,
+                "Name": existing_coc_details.get(src, {}).get("Name", "")
+            })
         if not coc_rows:
-            coc_rows.append({"Source UID": "default", "Destination UID": "DEFAULT_COC_UID"})
+            coc_rows.append({"Source UID": "default", "Destination UID": "DEFAULT_COC_UID", "Name": "default"})
             
-        if ext in (".xlsx", ".xls"):
-            with pd.ExcelWriter(mapping_path, engine="openpyxl") as writer:
-                pd.DataFrame(de_rows).to_excel(writer, sheet_name="data_elements", index=False)
-                pd.DataFrame(ou_rows).to_excel(writer, sheet_name="organisation_units", index=False)
-                pd.DataFrame(coc_rows).to_excel(writer, sheet_name="category_option_combos", index=False)
-            logger.info("Auto-generated missing mappings template Excel at %s", mapping_path)
-        elif ext == ".csv":
-            rows = []
-            for r in de_rows:
-                rows.append({"type": "data_element", "source": r["Source UID"], "destination": r["Destination UID"]})
-            for r in ou_rows:
-                # Flat structure for CSV format
-                rows.append({
-                    "type": "organisation_unit", 
-                    "source": r["Source UID"], 
-                    "destination": r["Destination UID"]
-                })
-            for r in coc_rows:
-                rows.append({"type": "category_option_combo", "source": r["Source UID"], "destination": r["Destination UID"]})
-            pd.DataFrame(rows).to_csv(mapping_path, index=False)
-            logger.info("Auto-generated missing mappings template CSV at %s", mapping_path)
+        with pd.ExcelWriter(mapping_path, engine="openpyxl") as writer:
+            pd.DataFrame(de_rows).to_excel(writer, sheet_name="data_elements", index=False)
+            pd.DataFrame(ou_rows).to_excel(writer, sheet_name="organisation_units", index=False)
+            pd.DataFrame(coc_rows).to_excel(writer, sheet_name="category_option_combos", index=False)
+            
+        logger.info("Auto-updated missing mappings template at %s", mapping_path)
     except Exception as e:
         logger.error("Background template generation failed: %s", e)
 
