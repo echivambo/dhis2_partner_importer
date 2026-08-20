@@ -285,12 +285,23 @@ def validate_data(request: ValidateRequest):
     state = active_state[partner_id]
     
     try:
+        loader = get_config_loader()
+        report_id = state.get("report_id")
+        report_config = loader.get_reports().get(report_id, {})
+        data_set_uid = report_config.get("data_set", "")
+        
+        partner_config = state["partner_config"].copy()
+        if "destination" not in partner_config:
+            partner_config["destination"] = {}
+        partner_config["destination"]["attribute_option_combo"] = partner_config.get("attribute_option_combo", "")
+        partner_config["destination"]["data_set"] = data_set_uid
+
         # 1. Run Mappings Transformation
-        transformed_df = transform_partner_data(state["raw_df"], state["partner_config"])
+        transformed_df = transform_partner_data(state["raw_df"], partner_config)
         state["transformed_df"] = transformed_df
         
         # 2. Run Mappings Validation
-        report = validate_transformed_data(transformed_df, state["partner_config"])
+        report = validate_transformed_data(transformed_df, partner_config)
         state["validation_report"] = report
         
         summary = report.summary()
