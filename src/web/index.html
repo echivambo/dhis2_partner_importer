@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DHIS2 Partner Importer Dashboard</title>
-    <!-- Google Fonts for premium Outfit typography -->
+    <!-- Google Fonts for Outfit typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -68,7 +68,7 @@
                 </div>
                 
                 <!-- Connection Health Check Cards -->
-                <div class="dashboard-grid">
+                <div class="dashboard-grid" id="dashboard-health-grid">
                     <div class="card status-card" id="health-dest-card">
                         <div class="status-indicator yellow"></div>
                         <div class="card-body">
@@ -78,21 +78,24 @@
                         </div>
                     </div>
                     
-                    <div class="card status-card" id="health-pathfinder-card">
-                        <div class="status-indicator yellow"></div>
-                        <div class="card-body">
-                            <h3>Source PATHFINDER</h3>
-                            <p class="server-url" id="lbl-pathfinder-url">Loading...</p>
-                            <span class="badge" id="lbl-pathfinder-status">Checking...</span>
-                        </div>
-                    </div>
+                    <!-- Dynamic Health Check status cards for reports will be appended here -->
+                </div>
 
-                    <div class="card status-card" id="health-psi-card">
-                        <div class="status-indicator yellow"></div>
-                        <div class="card-body">
-                            <h3>Source PSI</h3>
-                            <p class="server-url" id="lbl-psi-url">Loading...</p>
-                            <span class="badge" id="lbl-psi-status">Checking...</span>
+                <!-- Platform Instructions Guide -->
+                <div class="card margin-top-20">
+                    <div class="card-header border-bottom">
+                        <h3>How to Use the Platform</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="flex-column gap-15">
+                            <p style="line-height: 1.5; color: #444;">This platform allows facility managers to import monthly reports from partner DHIS2 instances into the central destination DHIS2 database. Follow these steps to execute a successful migration:</p>
+                            <ol style="margin-left: 20px; line-height: 1.6; display: flex; flex-direction: column; gap: 10px; color: #555;">
+                                <li><strong>Configure Connections:</strong> Go to the <strong>Settings</strong> tab and verify that the Destination DHIS2 credentials and Partner/Report Pivot Table links are correctly defined.</li>
+                                <li><strong>Extract Data:</strong> Open the <strong>Import Data</strong> tab. Choose the <strong>Source Partner</strong>, the specific <strong>Report</strong>, the <strong>Year</strong>, and the <strong>Month</strong>. Click <strong>Extract Data</strong> to fetch raw records.</li>
+                                <li><strong>Validate Mappings:</strong> Click <strong>Validate Mappings</strong> to translate element codes using Excel rules. If there are unmapped UIDs, the system will allow you to download an updated Excel sheet, fill in the blanks, and upload it in the <strong>Manage Mappings</strong> tab.</li>
+                                <li><strong>Simulation (Dry Run):</strong> Click <strong>Simulate Import (Dry Run)</strong> to test writing records to the target server without making permanent changes. This is highly recommended to identify conflicts.</li>
+                                <li><strong>Commit Import:</strong> Mark the confirmation check and click <strong>Import to Destination</strong> to write the final values permanently.</li>
+                            </ol>
                         </div>
                     </div>
                 </div>
@@ -112,7 +115,7 @@
             <section id="importer-tab" class="tab-panel">
                 <div class="content-header">
                     <h2>Data Importer (ETL)</h2>
-                    <p>Execute the monthly migration of health records by selecting the corresponding partner and period.</p>
+                    <p>Execute the monthly migration of health records by selecting the corresponding partner, report, and period.</p>
                 </div>
 
                 <!-- Parameters Card -->
@@ -123,11 +126,48 @@
                             <select id="select-partner" class="form-control">
                                 <option value="">Select a partner...</option>
                             </select>
+                            <!-- AOC display badge -->
+                            <div class="margin-top-5" style="font-size: 0.85em; color: #555;">
+                                Destination AOC: <span id="lbl-partner-aoc" class="font-bold" style="color: var(--dhis2-blue);">None</span>
+                            </div>
                         </div>
                         <div class="form-group flex-1 min-width-200">
-                            <label for="select-period">Report Period</label>
-                            <select id="select-period" class="form-control">
-                                <option value="">Select a period...</option>
+                            <label for="select-report">Report / Source Pivot Table</label>
+                            <select id="select-report" class="form-control">
+                                <option value="">Select a report...</option>
+                            </select>
+                        </div>
+                        <div class="form-group min-width-120">
+                            <label for="select-year">Year</label>
+                            <select id="select-year" class="form-control">
+                                <option value="2020">2020</option>
+                                <option value="2021">2021</option>
+                                <option value="2022">2022</option>
+                                <option value="2023">2023</option>
+                                <option value="2024">2024</option>
+                                <option value="2025">2025</option>
+                                <option value="2026" selected>2026</option>
+                                <option value="2027">2027</option>
+                                <option value="2028">2028</option>
+                                <option value="2029">2029</option>
+                                <option value="2030">2030</option>
+                            </select>
+                        </div>
+                        <div class="form-group min-width-150">
+                            <label for="select-month">Month</label>
+                            <select id="select-month" class="form-control">
+                                <option value="01">January</option>
+                                <option value="02">February</option>
+                                <option value="03">March</option>
+                                <option value="04">April</option>
+                                <option value="05">May</option>
+                                <option value="06">June</option>
+                                <option value="07">July</option>
+                                <option value="08">August</option>
+                                <option value="09">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
                             </select>
                         </div>
                     </div>
@@ -261,7 +301,7 @@
                         <p>The Excel file contains the following sheets representing mapping tables:</p>
                         <ul>
                             <li><strong>data_elements</strong>: Mapping of Data Elements (column 1: Partner UID; column 2: Corresponding Destination UID).</li>
-                            <li><strong>organisation_units</strong>: Mapping of Organisation Units (column 1: Partner UID; column 2: Corresponding Destination UID).</li>
+                            <li><strong>organisation_units</strong>: Mapping of Organisation Units (column 1: Partner UID; column 2: Corresponding Destination UID; column 3: Name; column 4: District; column 5: County).</li>
                             <li><strong>category_option_combos</strong>: Mapping of category option combos (default is <code>default</code> ➔ <code>DEFAULT_COC_UID</code>).</li>
                         </ul>
                         <p class="text-warning font-bold">[⚠️] Warning: Do not change the sheet names or column positions to prevent loader parsing errors.</p>
@@ -308,45 +348,53 @@
                         </div>
                     </div>
 
-                    <!-- Pathfinder Credentials Config -->
+                    <!-- Dynamic Partners Config -->
                     <div class="card margin-top-20">
-                        <div class="card-header border-bottom">
-                            <h3>Source Credentials: PATHFINDER</h3>
+                        <div class="card-header border-bottom flex-row justify-between align-center">
+                            <h3>Manage Partners</h3>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-partner-row">+ Add Partner</button>
                         </div>
-                        <div class="card-body flex-row-wrap gap-15">
-                            <div class="form-group flex-1 min-width-200">
-                                <label for="txt-pathfinder-username">Username (Pathfinder)</label>
-                                <input type="text" id="txt-pathfinder-username" class="form-control" placeholder="pathfinder_user">
-                            </div>
-                            <div class="form-group flex-1 min-width-200">
-                                <label for="txt-pathfinder-password">Password (Pathfinder)</label>
-                                <input type="password" id="txt-pathfinder-password" class="form-control" placeholder="********">
-                            </div>
-                            <div class="form-group flex-1 min-width-200">
-                                <label for="txt-pathfinder-pat">PAT Token (Pathfinder)</label>
-                                <input type="text" id="txt-pathfinder-pat" class="form-control" placeholder="Optional">
-                            </div>
+                        <div class="card-body no-padding scroll-x">
+                            <table class="dhis2-table" id="table-settings-partners">
+                                <thead>
+                                    <tr>
+                                        <th>Partner ID</th>
+                                        <th>Display Name</th>
+                                        <th>Attribute Option Combo</th>
+                                        <th>DataSet UID</th>
+                                        <th>Mapping File (.xlsx)</th>
+                                        <th style="width: 80px;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Injected dynamically via JS -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
-                    <!-- PSI Credentials Config -->
+                    <!-- Dynamic Reports Config -->
                     <div class="card margin-top-20">
-                        <div class="card-header border-bottom">
-                            <h3>Source Credentials: PSI</h3>
+                        <div class="card-header border-bottom flex-row justify-between align-center">
+                            <h3>Manage Reports / Pivot Tables</h3>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-report-row">+ Add Report</button>
                         </div>
-                        <div class="card-body flex-row-wrap gap-15">
-                            <div class="form-group flex-1 min-width-200">
-                                <label for="txt-psi-username">Username (PSI)</label>
-                                <input type="text" id="txt-psi-username" class="form-control" placeholder="psi_user">
-                            </div>
-                            <div class="form-group flex-1 min-width-200">
-                                <label for="txt-psi-password">Password (PSI)</label>
-                                <input type="password" id="txt-psi-password" class="form-control" placeholder="********">
-                            </div>
-                            <div class="form-group flex-1 min-width-200">
-                                <label for="txt-psi-pat">PAT Token (PSI)</label>
-                                <input type="text" id="txt-psi-pat" class="form-control" placeholder="Optional">
-                            </div>
+                        <div class="card-body no-padding scroll-x">
+                            <table class="dhis2-table" id="table-settings-reports">
+                                <thead>
+                                    <tr>
+                                        <th>Report ID</th>
+                                        <th>Report Name</th>
+                                        <th>Pivot Table URL (must contain {period})</th>
+                                        <th>Source Username</th>
+                                        <th>Source Password</th>
+                                        <th style="width: 80px;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Injected dynamically via JS -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 

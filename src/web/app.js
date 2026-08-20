@@ -1,14 +1,17 @@
 /**
  * DHIS2 Partner Importer - Frontend App Logic
  * Integrates with FastAPI REST endpoints, handles state management,
- * UI Tab switching, workflow wizard, file upload, and credential configuration.
+ * UI Tab switching, workflow wizard, file upload, and dynamic settings.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- STATE MANAGEMENT ---
-    let appSettings = {};
+    let loadedPartners = {};
+    let loadedReports = {};
     let activePartnerId = "";
-    let selectedPeriod = "";
+    let activeReportId = "";
+    let selectedYear = "2026";
+    let selectedMonth = "06";
     let systemLogs = [];
 
     // --- DOM ELEMENT REFERENCES ---
@@ -17,7 +20,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Importer Tab Controls
     const selectPartner = document.getElementById('select-partner');
-    const selectPeriod = document.getElementById('select-period');
+    const selectReport = document.getElementById('select-report');
+    const selectYear = document.getElementById('select-year');
+    const selectMonth = document.getElementById('select-month');
+    const lblPartnerAoc = document.getElementById('lbl-partner-aoc');
     const btnExtract = document.getElementById('btn-extract');
     const btnValidate = document.getElementById('btn-validate');
     const btnDryRun = document.getElementById('btn-dryrun');
@@ -43,16 +49,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const txtDestPassword = document.getElementById('txt-dest-password');
     const txtDestPat = document.getElementById('txt-dest-pat');
     const chkVerifySsl = document.getElementById('chk-verify-ssl');
-
-    // Pathfinder inputs
-    const txtPathfinderUsername = document.getElementById('txt-pathfinder-username');
-    const txtPathfinderPassword = document.getElementById('txt-pathfinder-password');
-    const txtPathfinderPat = document.getElementById('txt-pathfinder-pat');
-
-    // PSI inputs
-    const txtPsiUsername = document.getElementById('txt-psi-username');
-    const txtPsiPassword = document.getElementById('txt-psi-password');
-    const txtPsiPat = document.getElementById('txt-psi-pat');
+    const btnAddPartnerRow = document.getElementById('btn-add-partner-row');
+    const btnAddReportRow = document.getElementById('btn-add-report-row');
+    const tablePartnersBody = document.querySelector('#table-settings-partners tbody');
+    const tableReportsBody = document.querySelector('#table-settings-reports tbody');
 
     // Modal Confirmation Controls
     const modalConfirmImport = document.getElementById('modal-confirm-import');
@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         systemLogs.push(formattedMsg);
         consoleLogs.textContent = systemLogs.join('');
-        // Scroll console box to the bottom
+        // Scroll console box to bottom
         consoleLogs.scrollTop = consoleLogs.scrollHeight;
     }
 
@@ -107,8 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- INITIALIZATION ---
     async function initApp() {
         logToConsole("Initializing DHIS2 Data Importer application...", "info");
-        await fetchPartners();
-        populatePeriodDropdown();
+        await fetchPartnersAndReports();
         await runConnectionHealthChecks();
     }
 
@@ -116,17 +115,37 @@ document.addEventListener('DOMContentLoaded', () => {
     async function runConnectionHealthChecks() {
         logToConsole("Running connection health checks...", "info");
         
-        // Show loading statuses
+        // Show loading status for destination
         updateHealthCard('health-dest-card', 'Checking...', 'yellow');
-        updateHealthCard('health-pathfinder-card', 'Checking...', 'yellow');
-        updateHealthCard('health-psi-card', 'Checking...', 'yellow');
+
+        // Dynamically build/render cards for all configured reports first
+        const grid = document.getElementById('dashboard-health-grid');
+        const destCard = document.getElementById('health-dest-card');
+        grid.innerHTML = '';
+        grid.appendChild(destCard);
+
+        Object.keys(loadedReports).forEach(reportId => {
+            const report = loadedReports[reportId];
+            const card = document.createElement('div');
+            card.className = 'card status-card';
+            card.id = `health-report-${reportId}`;
+            card.innerHTML = `
+                <div class="status-indicator yellow"></div>
+                <div class="card-body">
+                    <h3>Report: ${report.name}</h3>
+                    <p class="server-url" style="word-break: break-all;">${report.pivot_table_url || 'No URL'}</p>
+                    <span class="badge badge-warning">Checking...</span>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
 
         try {
             const res = await fetch('/api/health');
             const data = await res.json();
 
             if (data.status === 'success') {
-                // Update Destination Instance status
+                // Update Destination status
                 const dest = data.destination;
                 if (dest.status === 'Connected') {
                     updateHealthCard('health-dest-card', `Online (v${dest.version})`, 'green', dest.error);
@@ -134,30 +153,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateHealthCard('health-dest-card', 'Offline', 'red', dest.error);
                 }
 
-                // Update Partners status
-                const partners = data.partners;
-                
-                const pf = partners['MZ-PATHFINDER'];
-                if (pf && pf.status === 'Connected') {
-                    updateHealthCard('health-pathfinder-card', `Online (v${pf.version})`, 'green', pf.error);
-                } else {
-                    updateHealthCard('health-pathfinder-card', 'Offline', 'red', pf ? pf.error : 'No configuration found');
-                }
-
-                const psi = partners['MZ-PSI'];
-                if (psi && psi.status === 'Connected') {
-                    updateHealthCard('health-psi-card', `Online (v${psi.version})`, 'green', psi.error);
-                } else {
-                    updateHealthCard('health-psi-card', 'Offline', 'red', psi ? psi.error : 'No configuration found');
-                }
+                // Update Reports status dynamically
+                const reports = data.reports;
+                Object.keys(reports).forEach(reportId => {
+                    const r_status = reports[reportId];
+                    const cardId = `health-report-${reportId}`;
+                    if (r_status.status === 'Connected') {
+                        updateHealthCard(cardId, `Online (v${r_status.version})`, 'green', r_status.error);
+                    } else {
+                        updateHealthCard(cardId, 'Offline', 'red', r_status.error);
+                    }
+                });
                 
                 logToConsole("Health checks completed.", "info");
             }
         } catch (error) {
             logToConsole(`Failed to retrieve health status: ${error}`, "error");
             updateHealthCard('health-dest-card', 'Error', 'red', error.message);
-            updateHealthCard('health-pathfinder-card', 'Error', 'red', error.message);
-            updateHealthCard('health-psi-card', 'Error', 'red', error.message);
+            Object.keys(loadedReports).forEach(reportId => {
+                updateHealthCard(`health-report-${reportId}`, 'Error', 'red', error.message);
+            });
         }
     }
 
@@ -168,17 +183,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const indicator = card.querySelector('.status-indicator');
         const badge = card.querySelector('.badge');
 
-        // Update indicator color bar
         indicator.className = 'status-indicator ' + color;
-
-        // Update badge text and colors
         badge.textContent = statusText;
         badge.className = 'badge';
         if (color === 'green') badge.classList.add('badge-success');
         else if (color === 'red') badge.classList.add('badge-danger');
         else badge.classList.add('badge-warning');
 
-        // Setup hover tooltip if error exists
         if (errorMsg) {
             card.title = `Error Details: ${errorMsg}`;
         } else {
@@ -186,68 +197,70 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- API: PARTNER DROPDOWNS ---
-    async function fetchPartners() {
+    // --- API: PARTNER & REPORT DROPDOWNS ---
+    async function fetchPartnersAndReports() {
         try {
             const res = await fetch('/api/partners');
             const data = await res.json();
 
             if (data.status === 'success') {
+                loadedPartners = data.partners || {};
+                loadedReports = data.reports || {};
+
+                // 1. Populate Partners dropdown
                 selectPartner.innerHTML = '<option value="">Select a partner...</option>';
-                Object.keys(data.partners).forEach(key => {
+                Object.keys(loadedPartners).forEach(key => {
                     const opt = document.createElement('option');
                     opt.value = key;
-                    opt.textContent = data.partners[key].name;
+                    opt.textContent = loadedPartners[key].name;
                     selectPartner.appendChild(opt);
                 });
-                
-                // Read global urls for labels on the dashboard
+
+                // 2. Populate Reports dropdown
+                selectReport.innerHTML = '<option value="">Select a report...</option>';
+                Object.keys(loadedReports).forEach(key => {
+                    const opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = loadedReports[key].name;
+                    selectReport.appendChild(opt);
+                });
+
+                // Set Destination label
                 document.getElementById('lbl-dest-url').textContent = "Target Central Instance";
-                document.getElementById('lbl-pathfinder-url').textContent = data.partners['MZ-PATHFINDER']?.source?.base_url || "https://data.psi-mis.org";
-                document.getElementById('lbl-psi-url').textContent = data.partners['MZ-PSI']?.source?.base_url || "https://another-dhis2.org";
             }
         } catch (error) {
-            logToConsole(`Failed loading partners list: ${error}`, "error");
+            logToConsole(`Failed loading partners and reports list: ${error}`, "error");
         }
     }
 
-    function populatePeriodDropdown() {
-        selectPeriod.innerHTML = '<option value="">Select a period...</option>';
-        
-        // Generate list of past 24 months mapping to friendly text and YYYYMM format
-        const monthsEn = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        const today = new Date();
-        
-        for (let i = 0; i < 24; i++) {
-            const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
-            const year = date.getFullYear();
-            const monthVal = String(date.getMonth() + 1).padStart(2, '0');
-            
-            const value = `${year}${monthVal}`;
-            const text = `${monthsEn[date.getMonth()]} ${year}`;
-            
-            const opt = document.createElement('option');
-            opt.value = value;
-            opt.textContent = text;
-            selectPeriod.appendChild(opt);
-        }
-    }
-
-    // Handle partner dropdown change
+    // Handle dropdown parameter changes
     selectPartner.addEventListener('change', () => {
         activePartnerId = selectPartner.value;
         resetPipelineWizard();
         
         if (activePartnerId) {
+            const partnerObj = loadedPartners[activePartnerId];
+            lblPartnerAoc.textContent = partnerObj.attribute_option_combo || 'None';
             logToConsole(`Active partner switched to: ${activePartnerId}`, "info");
             btnDownloadMapping.removeAttribute('disabled');
         } else {
+            lblPartnerAoc.textContent = 'None';
             btnDownloadMapping.setAttribute('disabled', 'true');
         }
     });
 
-    selectPeriod.addEventListener('change', () => {
-        selectedPeriod = selectPeriod.value;
+    selectReport.addEventListener('change', () => {
+        activeReportId = selectReport.value;
+        resetPipelineWizard();
+    });
+
+    selectYear.addEventListener('change', () => {
+        selectedYear = selectYear.value;
+        resetPipelineWizard();
+    });
+
+    selectMonth.addEventListener('change', () => {
+        selectedMonth = selectMonth.value;
         resetPipelineWizard();
     });
 
@@ -271,13 +284,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 1. EXTRACTION STEP
     btnExtract.addEventListener('click', async () => {
-        if (!activePartnerId || !selectedPeriod) {
-            alert("Please select a partner and a valid period.");
+        if (!activePartnerId || !activeReportId || !selectedYear || !selectedMonth) {
+            alert("Please select a partner, a report, and a valid period (Year and Month).");
             return;
         }
 
-        logToConsole(`Starting extraction for ${activePartnerId} in period ${selectedPeriod}...`, "info");
-        pipelineStatusText.textContent = "Extracting records from source server...";
+        const periodVal = `${selectedYear}${selectedMonth}`;
+        logToConsole(`Starting extraction for partner ${activePartnerId} using report ${activeReportId} for period ${periodVal}...`, "info");
+        pipelineStatusText.textContent = "Extracting records from source pivot table...";
         
         btnExtract.setAttribute('disabled', 'true');
         
@@ -285,7 +299,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ partner_id: activePartnerId, period: selectedPeriod })
+                body: JSON.stringify({
+                    partner_id: activePartnerId,
+                    report_id: activeReportId,
+                    year: selectedYear,
+                    month: selectedMonth
+                })
             });
             const data = await res.json();
 
@@ -293,7 +312,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 logToConsole(`Extraction completed. Raw records found: ${data.records_extracted}`, "success");
                 pipelineStatusText.textContent = `Records extracted: ${data.records_extracted}. Ready for validation.`;
                 
-                // Advance step tracker
                 document.getElementById('step-extract').className = 'wizard-step completed';
                 document.getElementById('step-validate').className = 'wizard-step active';
                 
@@ -328,7 +346,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok && data.status === 'success') {
                 logToConsole("Validation step completed.", "info");
                 
-                // Show mapping preview table
                 renderPreviewTable(data.preview);
                 previewCard.classList.remove('hide');
                 
@@ -346,8 +363,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     pipelineStatusText.textContent = "Error in mapping validation. New unmapped UIDs were found.";
                     
                     document.getElementById('step-validate').className = 'wizard-step active';
-                    
-                    // Show custom beautiful HTML alert box with download updated template button
                     showValidationAlert(data);
                 }
             } else {
@@ -370,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         records.forEach(row => {
             const tr = document.createElement('tr');
-            
             const deClass = row.dest_data_element ? '' : 'text-danger font-bold';
             const ouClass = row.dest_org_unit ? '' : 'text-danger font-bold';
 
@@ -405,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     📥 Download Updated Mapping Sheet
                 </a>
                 <p style="margin: 10px 0 0 0; font-size: 0.8em; color: #555;">
-                    Open the file in Excel, fill in the blanks in the <strong>Destination UID</strong> column, save it, and upload it using the mappings manager.
+                    Open the file in Excel, fill in the blanks in the <strong>Destination UID</strong>, <strong>Name</strong>, <strong>District</strong>, and <strong>County</strong> columns, save it, and upload it using the mappings manager.
                 </p>
             </div>
         `;
@@ -418,7 +432,6 @@ document.addEventListener('DOMContentLoaded', () => {
         pipelineStatusText.textContent = "Simulating data write on DHIS2...";
         
         btnDryRun.setAttribute('disabled', 'true');
-        
         const ignoreMissing = chkModalIgnore.checked;
         
         try {
@@ -448,7 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 4. IMPORT STEP (TRIGGER CONFIRM DIALOG)
+    // 4. IMPORT STEP
     btnImport.addEventListener('click', () => {
         chkModalComplete.checked = false;
         const isValidationOk = document.getElementById('step-validate').classList.contains('completed');
@@ -462,7 +475,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnModalConfirm.addEventListener('click', async () => {
         modalConfirmImport.classList.add('hide');
-        
         const complete = chkModalComplete.checked;
         const ignoreMissing = chkModalIgnore.checked;
         
@@ -497,10 +509,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.completion_report) {
                     logToConsole(`DataSet Completion Status: ${data.completion_report.status || 'N/A'}`, "info");
                 }
-                
-                if (data.conflicts && data.conflicts.length > 0) {
-                    logToConsole(`Conflicts reported: ${JSON.stringify(data.conflicts)}`, "warning");
-                }
 
                 pipelineStatusText.textContent = `Import completed! Records imported: ${data.import_count?.imported || 0}, updated: ${data.import_count?.updated || 0}.`;
                 document.getElementById('step-import').className = 'wizard-step completed';
@@ -518,14 +526,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- MAPPINGS MANAGEMENT ---
 
-    // Download active mapping sheet
     btnDownloadMapping.addEventListener('click', () => {
         if (!activePartnerId) return;
         logToConsole(`Downloading current mapping file for ${activePartnerId}...`, "info");
         window.location.href = `/api/mapping/download/${activePartnerId}`;
     });
 
-    // Drag & Drop event bindings
     mappingDragArea.addEventListener('click', () => {
         if (!activePartnerId) {
             alert("Please select a partner before uploading a mapping file.");
@@ -550,7 +556,6 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Please select a partner before uploading a mapping file.");
             return;
         }
-        
         if (e.dataTransfer.files.length > 0) {
             handleMappingFileSelect(e.dataTransfer.files[0]);
         }
@@ -579,12 +584,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (res.ok && data.status === 'success') {
                 uploadFileInfo.textContent = `✓ Mapping '${file.name}' uploaded successfully!`;
+                uploadFileInfo.className = "margin-top-10 text-center font-bold text-success";
                 logToConsole(`Mapping uploaded and applied successfully: ${file.name}`, "success");
-                
-                // Clear file input value
                 fileMappingUpload.value = "";
                 
-                // Re-run validation if raw data is already extracted
                 const isExtractDone = document.getElementById('step-extract').classList.contains('completed');
                 if (isExtractDone) {
                     btnValidate.click();
@@ -608,26 +611,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (data.status === 'success') {
-                appSettings = data.settings;
+                const settings = data.settings;
                 
-                // Populate forms
-                txtDestUrl.value = appSettings.destination_url;
-                txtDestUsername.value = appSettings.destination_username;
-                txtDestPassword.value = appSettings.destination_password;
-                txtDestPat.value = appSettings.destination_pat || "";
-                chkVerifySsl.checked = appSettings.verify_ssl;
+                // Populate Destination details
+                txtDestUrl.value = settings.destination_url;
+                txtDestUsername.value = settings.destination_username;
+                txtDestPassword.value = settings.destination_password;
+                txtDestPat.value = settings.destination_pat || "";
+                chkVerifySsl.checked = settings.verify_ssl;
 
-                // Pathfinder
-                const pf = appSettings.partners.PATHFINDER;
-                txtPathfinderUsername.value = pf.username;
-                txtPathfinderPassword.value = pf.password;
-                txtPathfinderPat.value = pf.pat || "";
+                // Populate Partners CRUD table
+                renderPartnersTable(settings.partners || {});
 
-                // PSI
-                const psi = appSettings.partners.PSI;
-                txtPsiUsername.value = psi.username;
-                txtPsiPassword.value = psi.password;
-                txtPsiPat.value = psi.pat || "";
+                // Populate Reports CRUD table
+                renderReportsTable(settings.reports || {});
                 
                 logToConsole("Configurations loaded successfully.", "info");
             }
@@ -636,7 +633,65 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Reset settings changes
+    function renderPartnersTable(partners) {
+        tablePartnersBody.innerHTML = '';
+        Object.keys(partners).forEach(pId => {
+            const partner = partners[pId];
+            appendPartnerRow(pId, partner.name || "", partner.attribute_option_combo || "", partner.data_set || "", partner.mapping_file || "");
+        });
+    }
+
+    function appendPartnerRow(id = "", name = "", aoc = "", dataSet = "", mapping = "") {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" class="form-control val-partner-id" value="${id}" placeholder="e.g. MZ-PSI" style="font-family: monospace;" required></td>
+            <td><input type="text" class="form-control val-partner-name" value="${name}" placeholder="e.g. MZ-PSI" required></td>
+            <td><input type="text" class="form-control val-partner-aoc" value="${aoc}" placeholder="e.g. PSI_AOC_UID" style="font-family: monospace;" required></td>
+            <td><input type="text" class="form-control val-partner-dataset" value="${dataSet}" placeholder="e.g. DataSet UID" style="font-family: monospace;" required></td>
+            <td><input type="text" class="form-control val-partner-mapping" value="${mapping}" placeholder="e.g. psi.xlsx" style="font-family: monospace;" required></td>
+            <td><button type="button" class="btn btn-danger btn-sm btn-delete-row">Delete</button></td>
+        `;
+        tablePartnersBody.appendChild(tr);
+    }
+
+    function renderReportsTable(reports) {
+        tableReportsBody.innerHTML = '';
+        Object.keys(reports).forEach(rId => {
+            const r = reports[rId];
+            appendReportRow(rId, r.name || "", r.pivot_table_url || "", r.username || "", r.password || "");
+        });
+    }
+
+    function appendReportRow(id = "", name = "", url = "", user = "", pwd = "") {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" class="form-control val-report-id" value="${id}" placeholder="e.g. psi_monthly" style="font-family: monospace;" required></td>
+            <td><input type="text" class="form-control val-report-name" value="${name}" placeholder="e.g. PSI Monthly Report" required></td>
+            <td><input type="text" class="form-control val-report-url" value="${url}" placeholder="e.g. https://...pe={period}..." required></td>
+            <td><input type="text" class="form-control val-report-username" value="${user}" placeholder="Source Username"></td>
+            <td><input type="password" class="form-control val-report-password" value="${pwd}" placeholder="Source Password"></td>
+            <td><button type="button" class="btn btn-danger btn-sm btn-delete-row">Delete</button></td>
+        `;
+        tableReportsBody.appendChild(tr);
+    }
+
+    // Dynamic row addition triggers
+    btnAddPartnerRow.addEventListener('click', () => appendPartnerRow());
+    btnAddReportRow.addEventListener('click', () => appendReportRow());
+
+    // Row deletion triggers (event delegation)
+    tablePartnersBody.addEventListener('click', (e) => {
+        if (e.target.classList.contains('btn-delete-row')) {
+            e.target.closest('tr').remove();
+        }
+    });
+
+    tableReportsBody.addEventListener('click', (e) => {
+        if (e.target.classList.contains('btn-delete-row')) {
+            e.target.closest('tr').remove();
+        }
+    });
+
     btnResetSettings.addEventListener('click', () => {
         fetchSettings();
     });
@@ -646,38 +701,82 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         logToConsole("Saving connection settings...", "info");
 
-        const updatedSettings = {
-            destination_url: txtDestUrl.value,
-            destination_username: txtDestUsername.value,
-            destination_password: txtDestPassword.value,
-            destination_pat: txtDestPat.value,
-            verify_ssl: chkVerifySsl.checked,
-            partners: {
-                PATHFINDER: {
-                    username: txtPathfinderUsername.value,
-                    password: txtPathfinderPassword.value,
-                    pat: txtPathfinderPat.value
-                },
-                PSI: {
-                    username: txtPsiUsername.value,
-                    password: txtPsiPassword.value,
-                    pat: txtPsiPat.value
-                }
+        // 1. Gather Partners map from DOM table rows
+        const partnersMap = {};
+        const pRows = tablePartnersBody.querySelectorAll('tr');
+        let hasPartnerErrors = false;
+        
+        pRows.forEach(row => {
+            const pId = row.querySelector('.val-partner-id').value.trim();
+            const pName = row.querySelector('.val-partner-name').value.trim();
+            const pAoc = row.querySelector('.val-partner-aoc').value.trim();
+            const pDataSet = row.querySelector('.val-partner-dataset').value.trim();
+            const pMapping = row.querySelector('.val-partner-mapping').value.trim();
+
+            if (pId) {
+                partnersMap[pId] = {
+                    name: pName,
+                    attribute_option_combo: pAoc,
+                    data_set: pDataSet,
+                    mapping_file: pMapping
+                };
+            } else {
+                hasPartnerErrors = true;
             }
+        });
+
+        // 2. Gather Reports map from DOM table rows
+        const reportsMap = {};
+        const rRows = tableReportsBody.querySelectorAll('tr');
+        let hasReportErrors = false;
+
+        rRows.forEach(row => {
+            const rId = row.querySelector('.val-report-id').value.trim();
+            const rName = row.querySelector('.val-report-name').value.trim();
+            const rUrl = row.querySelector('.val-report-url').value.trim();
+            const rUser = row.querySelector('.val-report-username').value.trim();
+            const rPwd = row.querySelector('.val-report-password').value.trim();
+
+            if (rId) {
+                reportsMap[rId] = {
+                    name: rName,
+                    pivot_table_url: rUrl,
+                    username: rUser,
+                    password: rPwd
+                };
+            } else {
+                hasReportErrors = true;
+            }
+        });
+
+        if (hasPartnerErrors || hasReportErrors) {
+            alert("Please make sure all ID values are filled out correctly.");
+            return;
+        }
+
+        const payload = {
+            destination_url: txtDestUrl.value.trim(),
+            destination_username: txtDestUsername.value.trim(),
+            destination_password: txtDestPassword.value.trim(),
+            destination_pat: txtDestPat.value.trim(),
+            verify_ssl: chkVerifySsl.checked,
+            partners: partnersMap,
+            reports: reportsMap
         };
 
         try {
             const res = await fetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedSettings)
+                body: JSON.stringify(payload)
             });
             const data = await res.json();
 
             if (res.ok && data.status === 'success') {
                 logToConsole("Settings updated successfully.", "success");
                 alert("Settings saved successfully!");
-                await runConnectionHealthChecks(); // Refresh statuses on dashboard
+                await fetchPartnersAndReports(); // Refresh local list state
+                await runConnectionHealthChecks(); // Refresh health cards on dashboard
             } else {
                 throw new Error(data.detail || "Failed to update settings.");
             }

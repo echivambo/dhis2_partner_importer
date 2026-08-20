@@ -22,16 +22,17 @@ class ConfigLoader:
         self.load_partners()
 
     def load_partners(self):
-        """Load partners configuration from partners.yaml."""
+        """Load partners and reports configuration from partners.yaml."""
         if not os.path.exists(self.partners_file):
             logger.error("Partners config file not found: %s", self.partners_file)
             raise FileNotFoundError(f"Partners configuration file not found at {self.partners_file}")
 
         try:
             with open(self.partners_file, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-                self._partners_config = data.get("partners", {}) if data else {}
-            logger.info("Loaded configuration for %d partners from %s", len(self._partners_config), self.partners_file)
+                data = yaml.safe_load(f) or {}
+                self._partners_config = data.get("partners", {})
+                self._reports_config = data.get("reports", {})
+            logger.info("Loaded configuration for %d partners and %d reports from %s", len(self._partners_config), len(self._reports_config), self.partners_file)
         except Exception as e:
             logger.error("Error loading partners config: %s", e)
             raise
@@ -40,32 +41,25 @@ class ConfigLoader:
         """Return list of loaded partner identifiers."""
         return list(self._partners_config.keys())
 
+    def get_report_names(self) -> list:
+        """Return list of loaded report identifiers."""
+        return list(self._reports_config.keys())
+
+    def get_reports(self) -> Dict[str, Any]:
+        """Return all reports configurations."""
+        return self._reports_config
+
     def get_partner_config(self, partner_id: str) -> Dict[str, Any]:
         """
-        Retrieve partner configuration. Resolves credentials from .env and
-        loads partner mapping files.
+        Retrieve partner configuration and load partner mapping files.
         """
         if partner_id not in self._partners_config:
             raise KeyError(f"Partner '{partner_id}' not found in configuration.")
 
         config = self._partners_config[partner_id].copy()
-        
-        # 1. Resolve source credentials from env
-        source = config.get("source", {})
-        resolved_source = source.copy()
-        
-        username_env = source.get("username_env")
-        password_env = source.get("password_env")
-        pat_env = source.get("pat_env")
-        
-        resolved_source["username"] = os.getenv(username_env) if username_env else None
-        resolved_source["password"] = os.getenv(password_env) if password_env else None
-        resolved_source["pat"] = os.getenv(pat_env) if pat_env else None
-        
-        config["source"] = resolved_source
 
-        # 2. Load partner-specific mappings
-        mapping_file = config.get("destination", {}).get("mapping_file")
+        # Load partner-specific mappings
+        mapping_file = config.get("mapping_file") or config.get("destination", {}).get("mapping_file")
         mappings = {
             "data_elements": {},
             "organisation_units": {},
