@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- STATE MANAGEMENT ---
     let loadedPartners = {};
     let loadedReports = {};
+    let loadedSources = {};
     let activePartnerId = "";
     let activeReportId = "";
     let selectedYear = "2026";
@@ -49,9 +50,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const txtDestPassword = document.getElementById('txt-dest-password');
     const txtDestPat = document.getElementById('txt-dest-pat');
     const chkVerifySsl = document.getElementById('chk-verify-ssl');
+    
     const btnAddPartnerRow = document.getElementById('btn-add-partner-row');
+    const btnAddSourceRow = document.getElementById('btn-add-source-row');
     const btnAddReportRow = document.getElementById('btn-add-report-row');
+    
     const tablePartnersBody = document.querySelector('#table-settings-partners tbody');
+    const tableSourcesBody = document.querySelector('#table-settings-sources tbody');
     const tableReportsBody = document.querySelector('#table-settings-reports tbody');
 
     // Modal Confirmation Controls
@@ -66,11 +71,9 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', () => {
             const targetTab = btn.getAttribute('data-tab');
             
-            // Switch navigation tab active class
             tabButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Switch visible panel
             tabPanels.forEach(panel => {
                 if (panel.id === targetTab) {
                     panel.classList.add('active');
@@ -79,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Trigger refreshes depending on the tab opened
             if (targetTab === 'dashboard-tab') {
                 runConnectionHealthChecks();
             } else if (targetTab === 'settings-tab') {
@@ -115,22 +117,22 @@ document.addEventListener('DOMContentLoaded', () => {
         logToConsole("Running connection health checks...", "info");
         updateHealthCard('health-dest-card', 'Checking...', 'yellow');
 
-        // Dynamically build health check cards for reports
+        // Dynamically build health check cards for source servers
         const grid = document.getElementById('dashboard-health-grid');
         const destCard = document.getElementById('health-dest-card');
         grid.innerHTML = '';
         grid.appendChild(destCard);
 
-        Object.keys(loadedReports).forEach(reportId => {
-            const report = loadedReports[reportId];
+        Object.keys(loadedSources).forEach(sourceId => {
+            const src = loadedSources[sourceId];
             const card = document.createElement('div');
             card.className = 'card status-card';
-            card.id = `health-report-${reportId}`;
+            card.id = `health-source-${sourceId}`;
             card.innerHTML = `
                 <div class="status-indicator yellow"></div>
                 <div class="card-body">
-                    <h3>Report: ${report.name}</h3>
-                    <p class="server-url" style="word-break: break-all;">${report.pivot_table_url || 'No URL'}</p>
+                    <h3>Source Server: ${src.name}</h3>
+                    <p class="server-url" style="word-break: break-all;">${src.base_url || 'No URL'}</p>
                     <span class="badge badge-warning">Checking...</span>
                 </div>
             `;
@@ -149,14 +151,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateHealthCard('health-dest-card', 'Offline', 'red', dest.error);
                 }
 
-                const reports = data.reports;
-                Object.keys(reports).forEach(reportId => {
-                    const r_status = reports[reportId];
-                    const cardId = `health-report-${reportId}`;
-                    if (r_status.status === 'Connected') {
-                        updateHealthCard(cardId, `Online (v${r_status.version})`, 'green', r_status.error);
+                const sources = data.sources || {};
+                Object.keys(sources).forEach(sourceId => {
+                    const s_status = sources[sourceId];
+                    const cardId = `health-source-${sourceId}`;
+                    if (s_status.status === 'Connected') {
+                        updateHealthCard(cardId, `Online (v${s_status.version})`, 'green', s_status.error);
                     } else {
-                        updateHealthCard(cardId, 'Offline', 'red', r_status.error);
+                        updateHealthCard(cardId, 'Offline', 'red', s_status.error);
                     }
                 });
                 
@@ -165,8 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             logToConsole(`Failed to retrieve health status: ${error}`, "error");
             updateHealthCard('health-dest-card', 'Error', 'red', error.message);
-            Object.keys(loadedReports).forEach(reportId => {
-                updateHealthCard(`health-report-${reportId}`, 'Error', 'red', error.message);
+            Object.keys(loadedSources).forEach(sourceId => {
+                updateHealthCard(`health-source-${sourceId}`, 'Error', 'red', error.message);
             });
         }
     }
@@ -192,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- API: PARTNER & REPORT DROPDOWNS ---
+    // --- API: PARTNER, SOURCE & REPORT DROPDOWNS ---
     async function fetchPartnersAndReports() {
         try {
             const res = await fetch('/api/partners');
@@ -201,6 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.status === 'success') {
                 loadedPartners = data.partners || {};
                 loadedReports = data.reports || {};
+                loadedSources = data.sources || {};
 
                 // Populate Partners dropdown
                 selectPartner.innerHTML = '<option value="">Select a partner...</option>';
@@ -227,7 +230,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Handle dropdown parameter changes
     selectPartner.addEventListener('change', () => {
         activePartnerId = selectPartner.value;
         resetPipelineWizard();
@@ -509,7 +511,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- MAPPINGS MANAGEMENT ---
 
-    // Always enabled now as it downloads global mappings.xlsx
     btnDownloadMapping.addEventListener('click', () => {
         logToConsole("Downloading global mappings.xlsx file...", "info");
         window.location.href = "/api/mapping/download";
@@ -562,7 +563,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 logToConsole("Global mapping file uploaded and applied successfully.", "success");
                 fileMappingUpload.value = "";
                 
-                // Trigger re-validation if active
                 const isExtractDone = document.getElementById('step-extract').classList.contains('completed');
                 if (isExtractDone) {
                     btnValidate.click();
@@ -597,6 +597,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Populate Partners CRUD table
                 renderPartnersTable(settings.partners || {});
 
+                // Populate Sources CRUD table
+                renderSourcesTable(settings.sources || {});
+
                 // Populate Reports CRUD table
                 renderReportsTable(settings.reports || {});
                 
@@ -626,32 +629,59 @@ document.addEventListener('DOMContentLoaded', () => {
         tablePartnersBody.appendChild(tr);
     }
 
+    function renderSourcesTable(sources) {
+        tableSourcesBody.innerHTML = '';
+        Object.keys(sources).forEach(sId => {
+            const s = sources[sId];
+            appendSourceRow(sId, s.name || "", s.base_url || "", s.username || "", s.password || "");
+        });
+    }
+
+    function appendSourceRow(id = "", name = "", url = "", user = "", pwd = "") {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" class="form-control val-source-id" value="${id}" placeholder="e.g. psi_server" style="font-family: monospace;" required></td>
+            <td><input type="text" class="form-control val-source-name" value="${name}" placeholder="e.g. PSI Server" required></td>
+            <td><input type="text" class="form-control val-source-url" value="${url}" placeholder="e.g. https://another-dhis2.org" style="font-family: monospace;" required></td>
+            <td><input type="text" class="form-control val-source-username" value="${user}" placeholder="Username" required></td>
+            <td><input type="password" class="form-control val-source-password" value="${pwd}" placeholder="Password" required></td>
+            <td><button type="button" class="btn btn-danger btn-sm btn-delete-row">Delete</button></td>
+        `;
+        tableSourcesBody.appendChild(tr);
+    }
+
     function renderReportsTable(reports) {
         tableReportsBody.innerHTML = '';
         Object.keys(reports).forEach(rId => {
             const r = reports[rId];
-            appendReportRow(rId, r.name || "", r.pivot_table_url || "", r.data_set || "", r.username || "", r.password || "");
+            appendReportRow(rId, r.name || "", r.pivot_table_url || "", r.data_set || "", r.source_id || "");
         });
     }
 
-    function appendReportRow(id = "", name = "", url = "", dataSet = "", user = "", pwd = "") {
+    function appendReportRow(id = "", name = "", url = "", dataSet = "", sourceId = "") {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><input type="text" class="form-control val-report-id" value="${id}" placeholder="e.g. psi_monthly" style="font-family: monospace;" required></td>
             <td><input type="text" class="form-control val-report-name" value="${name}" placeholder="e.g. PSI Monthly Report" required></td>
-            <td><input type="text" class="form-control val-report-url" value="${url}" placeholder="e.g. https://...pe={period}..." required></td>
+            <td><input type="text" class="form-control val-report-url" value="${url}" placeholder="e.g. /api/analytics.csv?pe={period}..." required></td>
             <td><input type="text" class="form-control val-report-dataset" value="${dataSet}" placeholder="e.g. Target DataSet UID" style="font-family: monospace;" required></td>
-            <td><input type="text" class="form-control val-report-username" value="${user}" placeholder="Source Username"></td>
-            <td><input type="password" class="form-control val-report-password" value="${pwd}" placeholder="Source Password"></td>
+            <td><input type="text" class="form-control val-report-sourceid" value="${sourceId}" placeholder="e.g. psi_server" style="font-family: monospace;" required></td>
             <td><button type="button" class="btn btn-danger btn-sm btn-delete-row">Delete</button></td>
         `;
         tableReportsBody.appendChild(tr);
     }
 
     btnAddPartnerRow.addEventListener('click', () => appendPartnerRow());
+    btnAddSourceRow.addEventListener('click', () => appendSourceRow());
     btnAddReportRow.addEventListener('click', () => appendReportRow());
 
     tablePartnersBody.addEventListener('click', (e) => {
+        if (e.target.classList.contains('btn-delete-row')) {
+            e.target.closest('tr').remove();
+        }
+    });
+
+    tableSourcesBody.addEventListener('click', (e) => {
         if (e.target.classList.contains('btn-delete-row')) {
             e.target.closest('tr').remove();
         }
@@ -691,7 +721,31 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // 2. Gather Reports map
+        // 2. Gather Sources map
+        const sourcesMap = {};
+        const sRows = tableSourcesBody.querySelectorAll('tr');
+        let hasSourceErrors = false;
+        
+        sRows.forEach(row => {
+            const sId = row.querySelector('.val-source-id').value.trim();
+            const sName = row.querySelector('.val-source-name').value.trim();
+            const sUrl = row.querySelector('.val-source-url').value.trim();
+            const sUser = row.querySelector('.val-source-username').value.trim();
+            const sPwd = row.querySelector('.val-source-password').value.trim();
+
+            if (sId) {
+                sourcesMap[sId] = {
+                    name: sName,
+                    base_url: sUrl,
+                    username: sUser,
+                    password: sPwd
+                };
+            } else {
+                hasSourceErrors = true;
+            }
+        });
+
+        // 3. Gather Reports map
         const reportsMap = {};
         const rRows = tableReportsBody.querySelectorAll('tr');
         let hasReportErrors = false;
@@ -701,23 +755,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const rName = row.querySelector('.val-report-name').value.trim();
             const rUrl = row.querySelector('.val-report-url').value.trim();
             const rDataSet = row.querySelector('.val-report-dataset').value.trim();
-            const rUser = row.querySelector('.val-report-username').value.trim();
-            const rPwd = row.querySelector('.val-report-password').value.trim();
+            const rSourceId = row.querySelector('.val-report-sourceid').value.trim();
 
             if (rId) {
                 reportsMap[rId] = {
                     name: rName,
                     pivot_table_url: rUrl,
                     data_set: rDataSet,
-                    username: rUser,
-                    password: rPwd
+                    source_id: rSourceId
                 };
             } else {
                 hasReportErrors = true;
             }
         });
 
-        if (hasPartnerErrors || hasReportErrors) {
+        if (hasPartnerErrors || hasSourceErrors || hasReportErrors) {
             alert("Please make sure all ID values are filled out correctly.");
             return;
         }
@@ -729,6 +781,7 @@ document.addEventListener('DOMContentLoaded', () => {
             destination_pat: txtDestPat.value.trim(),
             verify_ssl: chkVerifySsl.checked,
             partners: partnersMap,
+            sources: sourcesMap,
             reports: reportsMap
         };
 

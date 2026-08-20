@@ -15,27 +15,85 @@ class ConfigLoader:
     """
     def __init__(self, config_dir: str = DEFAULT_CONFIG_DIR):
         self.config_dir = config_dir
+        self.local_config_file = os.path.join(config_dir, "local_config.yaml")
         self.partners_file = os.path.join(config_dir, "partners.yaml")
         self.mappings_dir = os.path.join(config_dir, "mappings")
         self._partners_config: Dict[str, Any] = {}
+        self._reports_config: Dict[str, Any] = {}
+        self._sources_config: Dict[str, Any] = {}
         
+        self.active_config_file = self.local_config_file
+        
+        self.ensure_mappings_file_exists()
         self.load_partners()
 
+    def ensure_mappings_file_exists(self):
+        """Automatically generates an empty global mappings.xlsx file if it does not exist."""
+        os.makedirs(self.mappings_dir, exist_ok=True)
+        mapping_path = os.path.join(self.mappings_dir, "mappings.xlsx")
+        
+        if not os.path.exists(mapping_path):
+            import pandas as pd
+            logger.info("mappings.xlsx not found. Auto-generating clean mapping template at %s", mapping_path)
+            try:
+                de_df = pd.DataFrame(columns=["Source UID", "Destination UID", "Name"])
+                ou_df = pd.DataFrame(columns=["Source UID", "Destination UID", "Name", "District", "Country"])
+                coc_df = pd.DataFrame(columns=["Source UID", "Destination UID", "Name"])
+                
+                with pd.ExcelWriter(mapping_path, engine="openpyxl") as writer:
+                    de_df.to_excel(writer, sheet_name="data_elements", index=False)
+                    ou_df.to_excel(writer, sheet_name="organisation_units", index=False)
+                    coc_df.to_excel(writer, sheet_name="category_option_combos", index=False)
+            except Exception as e:
+                logger.error("Failed to auto-generate mappings.xlsx template: %s", e)
+
     def load_partners(self):
-        """Load partners and reports configuration from partners.yaml."""
-        if not os.path.exists(self.partners_file):
-            logger.error("Partners config file not found: %s", self.partners_file)
-            raise FileNotFoundError(f"Partners configuration file not found at {self.partners_file}")
+        """Load partners, reports, and sources configuration from local_config.yaml (or fallback to partners.yaml)."""
+        # Determine which file to load
+        load_path = self.local_config_file
+        if not os.path.exists(load_path):
+            if os.path.exists(self.partners_file):
+                load_path = self.partners_file
+                logger.info("local_config.yaml not found. Initializing from default partners.yaml.")
+            else:
+                logger.error("No configuration files found at config/ directory.")
+                raise FileNotFoundError("Configuration file partners.yaml not found.")
 
         try:
-            with open(self.partners_file, "r", encoding="utf-8") as f:
+            with open(load_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
                 self._partners_config = data.get("partners", {})
                 self._reports_config = data.get("reports", {})
-            logger.info("Loaded configuration for %d partners and %d reports from %s", len(self._partners_config), len(self._reports_config), self.partners_file)
+                self._sources_config = data.get("sources", {})
+                
+            logger.info(
+                "Loaded configuration (%d partners, %d reports, %d sources) from %s", 
+                len(self._partners_config), 
+                len(self._reports_config), 
+                len(self._sources_config),
+                load_path
+            )
+            
+            # If we loaded from the default partners.yaml, write it to local_config.yaml to persist it
+            if load_path == self.partners_file:
+                self.save_local_config()
         except Exception as e:
-            logger.error("Error loading partners config: %s", e)
+            logger.error("Error loading configuration: %s", e)
             raise
+
+    def save_local_config(self):
+        """Saves current memory configurations to local_config.yaml."""
+        try:
+            new_yaml_config = {
+                "partners": self._partners_config,
+                "reports": self._reports_config,
+                "sources": self._sources_config
+            }
+            with open(self.local_config_file, "w", encoding="utf-8") as f:
+                yaml.dump(new_yaml_config, f, default_flow_style=False)
+            logger.info("Successfully persisted configurations to %s", self.local_config_file)
+        except Exception as e:
+            logger.error("Failed to save local_config.yaml: %s", e)
 
     def get_partner_names(self) -> list:
         """Return list of loaded partner identifiers."""
@@ -48,6 +106,10 @@ class ConfigLoader:
     def get_reports(self) -> Dict[str, Any]:
         """Return all reports configurations."""
         return self._reports_config
+
+    def get_sources(self) -> Dict[str, Any]:
+        """Return all sources configurations."""
+        return self._sources_config
 
     def get_partner_config(self, partner_id: str) -> Dict[str, Any]:
         """

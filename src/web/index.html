@@ -369,6 +369,31 @@
                         </div>
                     </div>
 
+                    <!-- Dynamic Source Servers Config -->
+                    <div class="card margin-top-20">
+                        <div class="card-header border-bottom flex-row justify-between align-center">
+                            <h3>Manage Source Servers</h3>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-source-row">+ Add Source Server</button>
+                        </div>
+                        <div class="card-body no-padding scroll-x">
+                            <table class="dhis2-table" id="table-settings-sources">
+                                <thead>
+                                    <tr>
+                                        <th>Source Server ID</th>
+                                        <th>Server Name</th>
+                                        <th>Base URL</th>
+                                        <th>Username</th>
+                                        <th>Password</th>
+                                        <th style="width: 80px;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Injected dynamically via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <!-- Dynamic Reports Config -->
                     <div class="card margin-top-20">
                         <div class="card-header border-bottom flex-row justify-between align-center">
@@ -383,8 +408,7 @@
                                         <th>Report Name</th>
                                         <th>Pivot Table URL (must contain {period})</th>
                                         <th>Destination DataSet UID</th>
-                                        <th>Source Username</th>
-                                        <th>Source Password</th>
+                                        <th>Source Server ID</th>
                                         <th style="width: 80px;">Action</th>
                                     </tr>
                                 </thead>
