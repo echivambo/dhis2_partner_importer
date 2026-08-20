@@ -7,7 +7,7 @@ partners:
     name: MZ-PSI
 reports:
   psi_monthly:
-    data_set: DESTINATION_DATASET_UID
+    data_set: DC2YRPcinGT
     name: PSI Monthly Facility Report
     password: Montemor02523@
     pivot_table_url: https://data.psi-mis.org/api/analytics.csv?dimension=dx%3Ar3LDeNOuCdK%3BlUMKo1erWQ5&dimension=ou%3ABxVVN63tF09%3BMfmoUaE3zAd&dimension=pe%3A{period}&showHierarchy=false&hierarchyMeta=false&includeMetadataDetails=true&includeNumDen=true&skipRounding=false&completedOnly=false&outputIdScheme=UID
