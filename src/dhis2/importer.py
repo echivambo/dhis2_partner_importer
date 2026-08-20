@@ -163,8 +163,20 @@ def import_to_dhis2(
     # 3. Live Mode Execution
     logger.info("Starting live import to DHIS2 for partner: %s", partner_name)
     try:
-        response = dest_client.post("api/dataValueSets", json=payload)
-        import_summary = response.json()
+        import json
+        from src.dhis2.client import DHIS2HTTPError
+        
+        try:
+            response = dest_client.post("api/dataValueSets", json=payload)
+            import_summary = response.json()
+        except DHIS2HTTPError as e:
+            if e.status_code == 409 and e.response_text:
+                try:
+                    import_summary = json.loads(e.response_text)
+                except Exception:
+                    raise e
+            else:
+                raise e
         
         # Handle cases where DHIS2 wraps the summary in a "response" key
         if "response" in import_summary and isinstance(import_summary["response"], dict):
