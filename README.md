@@ -1,141 +1,140 @@
-# DHIS2 Partner Importer
+# DHIS2 Partner Data Importer
 
-A robust, python-based ETL (Extract-Transform-Load) utility to synchronize monthly Facility reports across different DHIS2 partner instances.
-
-This application connects to partner DHIS2 source APIs, extracts raw data element CSV responses from Analytics API endpoints, applies customizable translations for both Data Element and Organisation Unit UIDs on a per-partner basis, validates data consistency, simulates the import status (Dry Run), and imports data valuesets safely into a target DHIS2 server.
-
-## Features
-
-- **Isolated Partner Configurations**: Add, modify, or remove partner details and mapping rules in structured YAML files without touching the core codebase.
-- **Dynamic Periods**: Friendly month selectors mapping automatically to DHIS2 `YYYYMM` formats.
-- **Strict Data Validation**: Prevents importing if data contains unmapped Data Elements, unmapped Organisation Units, or invalid periods.
-- **Dry Run Mode**: Simulates the import and details what records are valid and what conflicts would occur.
-- **Secure Credentials**: Never exposes credentials, Authorization headers, or tokens in configurations or log outputs.
-- **Dockerized Jupyter Interface**: Runs easily inside Docker with Traefik reverse-proxy routing to `http://dhis2-importer.localhost`.
+A robust, enterprise-grade data migration middleware designed to extract data records from multiple source DHIS2 instances (using Pivot Table Analytics CSV exports), dynamically validate and translate UIDs based on Excel mappings, and upload the transformed datasets directly into a target central DHIS2 instance.
 
 ---
 
-## Folder Structure
+## Key Features
 
-```
+- **Dynamic Pivot Table Extraction:** Supports absolute, fully configured DHIS2 Analytics CSV URLs.
+- **Host-Domain Decoupling Credentials:** Decouples reports from credentials. The system automatically parses the base domain from the report's Pivot Table URL and looks up the configured username/password credentials.
+- **Split-UID Partition Mapping:** Handles category option combos dynamically (e.g., partitioning `mhE3DzNMOmw.nQiuxrt5KHG` into element and category combos). If no combo is defined in the destination, it defaults to the DHIS2 central server default.
+- **Detailed Validation Reports:** Reports missing mappings (Data Elements or Organisation Units) in separate scrollable code boxes. Synonyms like `Province` (instead of `District`) are supported in mapping templates.
+- **Excel Upload Mappings Manager:** Allows downloading the template containing missing source UIDs, completing translations in Excel, and uploading it back to the platform.
+- **Built-in Cache Cleaner:** Features a native Cache Cleaner button that purges LocalStorage, SessionStorage, Cache API, and forces a hard reload with cache-busting tokens.
+- **Robust Health Checks:** Displays real-time connectivity status (Online/Offline) for the target central server and configured source domains.
+- **Persistence Configurations:** Saves changes made on the UI settings tab to local YAML configurations, bypassing Git to prevent losing configurations when updates are fetched.
+
+---
+
+## Project Structure
+
+```text
 dhis2_partner_importer/
-│
-├── .env                  # Configuration credentials (gitignored)
-├── .env.example          # Sample environment variables template
-├── .gitignore            # Git exclusion definitions
-├── Dockerfile            # Docker instructions
-├── docker-compose.yml    # App + Traefik containers orchestration
-├── requirements.txt      # Python dependencies
-├── README.md             # Setup and running instructions
-│
-├── config/
-│   ├── partners.yaml     # Global partner endpoints & credential references
-│   └── mappings/         # Mappings per partner
-│       ├── pathfinder.yaml
-│       └── psi.yaml
-│
-├── notebooks/
-│   └── dhis2_importer.ipynb # Launcher notebook for the ipywidgets Dashboard
-│
-└── src/
-    ├── config/           # Configuration loader
-    ├── dhis2/            # DHIS2 Auth Client, Analytics, and Target Importers
-    ├── transformation/   # Mapping translation logic
-    ├── validation/       # Data Element, OU, and Period validations
-    ├── utils/            # Logging and Period utilities
-    └── ui/               # Widget dashboard rendering
+├── config/                     # Shared configurations
+│   ├── mappings/               # Directory containing mappings.xlsx
+│   └── partners.yaml           # Default template configurations (fallback)
+├── src/                        # Python Application Source Code
+│   ├── app.py                  # Main FastAPI REST endpoints controller
+│   ├── config/                 # Dynamic local configuration loader
+│   ├── dhis2/                  # DHIS2 API client and importer tasks
+│   ├── transformation/         # Split translation engine (dot-syntax partitioning)
+│   ├── validation/             # Validation logic report compiling
+│   └── web/                    # Static frontend (HTML/CSS/JS with Outfit style)
+├── tests/                      # Pipeline and transformation unit tests
+├── Dockerfile                  # Application Docker recipe
+└── docker-compose.yml          # Container configuration with Traefik integration
 ```
 
 ---
 
-## Getting Started
+## Local Development Installation
 
-### 1. Setup Environment Credentials
-Copy `.env.example` into a new `.env` file at the project root:
-```bash
-cp .env.example .env
-```
-Fill in the destination DHIS2 server URL, credentials (either `USERNAME` + `PASSWORD` or `PAT` token), and custom partner credentials:
-```ini
-VERIFY_SSL=true
+### Prerequisites
+- Python 3.10 or higher
+- Git
 
-# Destination Target Server
-DESTINATION_DHIS2_URL=https://play.dhis2.org/2.40.0
-DESTINATION_DHIS2_USERNAME=admin
-DESTINATION_DHIS2_PASSWORD=district
-
-# Source Partner (MZ-PATHFINDER)
-PATHFINDER_DHIS2_USERNAME=pathfinder_user
-PATHFINDER_DHIS2_PASSWORD=pathfinder_password
-```
-
-### 2. Run Locally (Python Virtual Environment)
-1. Create a virtual environment and activate it:
+### Steps
+1. **Clone the Repository:**
    ```bash
-   python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
-   # On macOS/Linux:
-   source venv/bin/activate
+   git clone https://github.com/echivambo/dhis2_partner_importer.git
+   cd dhis2_partner_importer
    ```
-2. Install dependencies:
+
+2. **Create a Virtual Environment:**
+   - **On Windows:**
+     ```bash
+     python -m venv venv
+     venv\Scripts\activate
+     ```
+   - **On Linux/macOS:**
+     ```bash
+     python3 -m venv venv
+     source venv/bin/activate
+     ```
+
+3. **Install Dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
-3. Launch Jupyter Lab:
-   ```bash
-   jupyter lab
-   ```
-4. Navigate to `notebooks/dhis2_importer.ipynb` and run the cell to display the dashboard.
 
-### 3. Run with Docker & Traefik
-1. Start the Docker containers:
+4. **Environment Variables Config:**
+   Create a `.env` file in the project root:
+   ```env
+   DESTINATION_DHIS2_URL=https://play.dhis2.org/2.40.0
+   DESTINATION_DHIS2_USERNAME=admin
+   DESTINATION_DHIS2_PASSWORD=district
+   DESTINATION_DHIS2_PAT=
+   VERIFY_SSL=true
+   ```
+
+5. **Run Unit Tests (Validation check):**
+   ```bash
+   python -m unittest tests/test_pipeline.py
+   ```
+
+6. **Start the FastAPI Server:**
+   ```bash
+   python -m uvicorn src.app:app --port 8005 --host 127.0.0.1 --reload
+   ```
+   Open `http://127.0.0.1:8005` in your browser.
+
+---
+
+## Production / Server Installation using Docker
+
+To run the application in a production environment or a Linux server, Docker is the recommended method.
+
+### Prerequisites
+- Docker Engine
+- Docker Compose
+
+### Steps
+1. **Prepare Environment Settings:**
+   Ensure `.env` file is present in the workspace root with correct production central DHIS2 destination credentials.
+
+2. **Spin Up Containers:**
+   Launch the system in background mode:
    ```bash
    docker compose up -d --build
    ```
-2. The Traefik reverse proxy will automatically capture the port bindings.
-3. Open your browser and go to:
-   [http://dhis2-importer.localhost](http://dhis2-importer.localhost)
-   *(Note: Jupyter Lab token is disabled by default in Docker for local ease of use).*
+
+   This builds the FastAPI image, starts the container, mounts the `./config` volume for persistence, and links it with Traefik for reverse-proxy routing.
+
+3. **Verify running containers:**
+   ```bash
+   docker compose ps
+   ```
+
+4. **Access the App:**
+   Open the port `8005` on your host machine: `http://localhost:8005`.
+
+5. **Stop Services:**
+   To stop the running application:
+   ```bash
+   docker compose down
+   ```
 
 ---
 
-## Configuring Partners & Mappings
+## Configurations Guide
 
-### Adding a New Partner
-1. Open `config/partners.yaml` and add a new partner record:
-   ```yaml
-   partners:
-     NEW-PARTNER:
-       name: "New Partner Name"
-       source:
-         base_url: "https://source-instance.org"
-         analytics_url: "https://source-instance.org/api/analytics.csv?dimension=dx:xA01Im2qXJ2&dimension=ou:x1WEJQu4rJp&dimension=pe:{period}"
-         username_env: "NEW_PARTNER_USER"
-         password_env: "NEW_PARTNER_PWD"
-       destination:
-         data_set: "TARGET_DATASET_UID"
-         attribute_option_combo: "TARGET_AOC_UID"
-         mapping_file: "new_partner.yaml"
-   ```
-2. Create `config/mappings/new_partner.yaml` to specify translation mappings:
-   ```yaml
-   data_elements:
-     xA01Im2qXJ2: "DEST_DE_xA01"
-     
-   organisation_units:
-     x1WEJQu4rJp: "DEST_OU_x1WE"
-     
-   category_option_combos:
-     default: "DEFAULT_COC_UID"
-   ```
-3. Define the credentials (`NEW_PARTNER_USER` and `NEW_PARTNER_PWD`) in your `.env` file.
+### 1. Excel Mapping File
+The Excel sheet `config/mappings/mappings.xlsx` has two sheets:
+- `data_elements`: Maps `Source UID` -> `Destination UID` and `Name`.
+- `organisation_units`: Maps `Source UID` -> `Destination UID`, `Name`, `Province`, and `Country`.
 
----
+If new unmapped source UIDs are found during the validation step, a template will be generated. Download it, fill in the translations, and upload it back.
 
-## Running Tests
-
-To run the unit test suite covering pipeline components:
-```bash
-python -m unittest tests/test_pipeline.py
-```
+### 2. Settings tab
+Configure multiple partners and report Pivot Table URLs from the **Settings** tab. The system parses domain origins dynamically (e.g. `https://data.psi-mis.org`) and matches credentials saved under **Manage Source Servers** to perform seamless background authentication during extraction steps.

@@ -849,5 +849,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- NATIVE CACHE CLEANER LOGIC ---
+    const btnClearCache = document.getElementById('btn-clear-browser-cache');
+    if (btnClearCache) {
+        btnClearCache.addEventListener('click', () => {
+            logToConsole("Clearing browser local storage and session data...", "warning");
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            if (window.caches) {
+                caches.keys().then(names => {
+                    for (let name of names) caches.delete(name);
+                });
+            }
+            
+            logToConsole("Cache cleared successfully! Performing hard reload...", "success");
+            alert("Cache cleared successfully! Reloading page...");
+            
+            setTimeout(() => {
+                window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
+            }, 300);
+        });
+    }
+
     initApp();
 });
