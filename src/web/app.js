@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- STATE MANAGEMENT ---
     let loadedPartners = {};
     let loadedReports = {};
+    let loadedSources = {};
     let activePartnerId = "";
     let activeReportId = "";
     let selectedYear = "2026";
@@ -49,9 +50,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const txtDestPassword = document.getElementById('txt-dest-password');
     const txtDestPat = document.getElementById('txt-dest-pat');
     const chkVerifySsl = document.getElementById('chk-verify-ssl');
+    
     const btnAddPartnerRow = document.getElementById('btn-add-partner-row');
+    const btnAddSourceRow = document.getElementById('btn-add-source-row');
     const btnAddReportRow = document.getElementById('btn-add-report-row');
+    
     const tablePartnersBody = document.querySelector('#table-settings-partners tbody');
+    const tableSourcesBody = document.querySelector('#table-settings-sources tbody');
     const tableReportsBody = document.querySelector('#table-settings-reports tbody');
 
     // Modal Confirmation Controls
@@ -65,12 +70,10 @@ document.addEventListener('DOMContentLoaded', () => {
     tabButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const targetTab = btn.getAttribute('data-tab');
-
-            // Switch navigation tab active class
+            
             tabButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Switch visible panel
             tabPanels.forEach(panel => {
                 if (panel.id === targetTab) {
                     panel.classList.add('active');
@@ -79,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Trigger refreshes depending on the tab opened
             if (targetTab === 'dashboard-tab') {
                 runConnectionHealthChecks();
             } else if (targetTab === 'settings-tab') {
@@ -92,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function logToConsole(message, type = 'info') {
         const timestamp = new Date().toLocaleTimeString();
         let formattedMsg = `[${timestamp}] [${type.toUpperCase()}] ${message}\n`;
-
+        
         systemLogs.push(formattedMsg);
         consoleLogs.textContent = systemLogs.join('');
         consoleLogs.scrollTop = consoleLogs.scrollHeight;
@@ -115,22 +117,22 @@ document.addEventListener('DOMContentLoaded', () => {
         logToConsole("Running connection health checks...", "info");
         updateHealthCard('health-dest-card', 'Checking...', 'yellow');
 
-        // Dynamically build health check cards for reports
+        // Dynamically build health check cards for source servers
         const grid = document.getElementById('dashboard-health-grid');
         const destCard = document.getElementById('health-dest-card');
         grid.innerHTML = '';
         grid.appendChild(destCard);
 
-        Object.keys(loadedReports).forEach(reportId => {
-            const report = loadedReports[reportId];
+        Object.keys(loadedSources).forEach(sourceUrl => {
+            const safeId = sourceUrl.replace(/[^a-zA-Z0-9]/g, '-');
             const card = document.createElement('div');
             card.className = 'card status-card';
-            card.id = `health-report-${reportId}`;
+            card.id = `health-source-${safeId}`;
             card.innerHTML = `
                 <div class="status-indicator yellow"></div>
                 <div class="card-body">
-                    <h3>Report: ${report.name}</h3>
-                    <p class="server-url" style="word-break: break-all;">${report.pivot_table_url || 'No URL'}</p>
+                    <h3>Source Server</h3>
+                    <p class="server-url" style="word-break: break-all;">${sourceUrl}</p>
                     <span class="badge badge-warning">Checking...</span>
                 </div>
             `;
@@ -149,24 +151,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateHealthCard('health-dest-card', 'Offline', 'red', dest.error);
                 }
 
-                const reports = data.reports;
-                Object.keys(reports).forEach(reportId => {
-                    const r_status = reports[reportId];
-                    const cardId = `health-report-${reportId}`;
-                    if (r_status.status === 'Connected') {
-                        updateHealthCard(cardId, `Online (v${r_status.version})`, 'green', r_status.error);
+                const sources = data.sources || {};
+                Object.keys(sources).forEach(sourceUrl => {
+                    const s_status = sources[sourceUrl];
+                    const safeId = sourceUrl.replace(/[^a-zA-Z0-9]/g, '-');
+                    const cardId = `health-source-${safeId}`;
+                    if (s_status.status === 'Connected') {
+                        updateHealthCard(cardId, `Online (v${s_status.version})`, 'green', s_status.error);
                     } else {
-                        updateHealthCard(cardId, 'Offline', 'red', r_status.error);
+                        updateHealthCard(cardId, 'Offline', 'red', s_status.error);
                     }
                 });
-
+                
                 logToConsole("Health checks completed.", "info");
             }
         } catch (error) {
             logToConsole(`Failed to retrieve health status: ${error}`, "error");
             updateHealthCard('health-dest-card', 'Error', 'red', error.message);
-            Object.keys(loadedReports).forEach(reportId => {
-                updateHealthCard(`health-report-${reportId}`, 'Error', 'red', error.message);
+            Object.keys(loadedSources).forEach(sourceUrl => {
+                const safeId = sourceUrl.replace(/[^a-zA-Z0-9]/g, '-');
+                updateHealthCard(`health-source-${safeId}`, 'Error', 'red', error.message);
             });
         }
     }
@@ -192,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- API: PARTNER & REPORT DROPDOWNS ---
+    // --- API: PARTNER, SOURCE & REPORT DROPDOWNS ---
     async function fetchPartnersAndReports() {
         try {
             const res = await fetch('/api/partners');
@@ -201,6 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.status === 'success') {
                 loadedPartners = data.partners || {};
                 loadedReports = data.reports || {};
+                loadedSources = data.sources || {};
 
                 // Populate Partners dropdown
                 selectPartner.innerHTML = '<option value="">Select a partner...</option>';
@@ -227,11 +232,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Handle dropdown parameter changes
     selectPartner.addEventListener('change', () => {
         activePartnerId = selectPartner.value;
         resetPipelineWizard();
-
+        
         if (activePartnerId) {
             const partnerObj = loadedPartners[activePartnerId];
             lblPartnerAoc.textContent = partnerObj.attribute_option_combo || 'None';
@@ -262,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnValidate.setAttribute('disabled', 'true');
         btnDryRun.setAttribute('disabled', 'true');
         btnImport.setAttribute('disabled', 'true');
-
+        
         document.querySelectorAll('.wizard-step').forEach(step => {
             step.className = 'wizard-step';
             if (step.id === 'step-extract') step.classList.add('active');
@@ -284,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logToConsole(`Starting extraction for partner ${activePartnerId} using report ${activeReportId} for period ${periodVal}...`, "info");
         pipelineStatusText.textContent = "Extracting records from source pivot table...";
         btnExtract.setAttribute('disabled', 'true');
-
+        
         try {
             const res = await fetch('/api/extract', {
                 method: 'POST',
@@ -301,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok && data.status === 'success') {
                 logToConsole(`Extraction completed. Raw records found: ${data.records_extracted}`, "success");
                 pipelineStatusText.textContent = `Records extracted: ${data.records_extracted}. Ready for validation.`;
-
+                
                 document.getElementById('step-extract').className = 'wizard-step completed';
                 document.getElementById('step-validate').className = 'wizard-step active';
                 btnValidate.removeAttribute('disabled');
@@ -322,7 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pipelineStatusText.textContent = "Translating codes and validating mappings...";
         btnValidate.setAttribute('disabled', 'true');
         validationAlertBox.classList.add('hide');
-
+        
         try {
             const res = await fetch('/api/validate', {
                 method: 'POST',
@@ -335,11 +339,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 logToConsole("Validation step completed.", "info");
                 renderPreviewTable(data.preview);
                 previewCard.classList.remove('hide');
-
+                
                 if (data.is_valid) {
                     logToConsole("All records successfully mapped and checked. Ready for Import/Simulation.", "success");
                     pipelineStatusText.textContent = "Mappings validated successfully! Ready for Dry Run or Import.";
-
+                    
                     document.getElementById('step-validate').className = 'wizard-step completed';
                     document.getElementById('step-dryrun').className = 'wizard-step active';
                     btnDryRun.removeAttribute('disabled');
@@ -347,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     logToConsole(`Validation failed. Missing mappings found: DEs=${data.missing_de_count}, OUs=${data.missing_ou_count}`, "warning");
                     pipelineStatusText.textContent = "Error in mapping validation. New unmapped UIDs were found.";
-
+                    
                     document.getElementById('step-validate').className = 'wizard-step active';
                     showValidationAlert(data);
                 }
@@ -387,10 +391,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showValidationAlert(data) {
         validationAlertBox.innerHTML = '';
-
+        
         let deListHtml = data.missing_de_list.length > 0 ? `<li><strong>Data Elements:</strong> <code>${data.missing_de_list.join(', ')}</code></li>` : '';
         let ouListHtml = data.missing_ou_list.length > 0 ? `<li><strong>Organisation Units:</strong> <code>${data.missing_ou_list.join(', ')}</code></li>` : '';
-
+        
         validationAlertBox.innerHTML = `
             <div style="background-color: #ffeef0; border-left: 5px solid #d83b01; padding: 15px; border-radius: 4px; font-family: sans-serif;">
                 <h4 style="color: #d83b01; margin-top: 0; margin-bottom: 8px;">[⚠️] Unmapped Source UIDs Detected</h4>
@@ -418,7 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pipelineStatusText.textContent = "Simulating data write on DHIS2...";
         btnDryRun.setAttribute('disabled', 'true');
         const ignoreMissing = chkModalIgnore.checked;
-
+        
         try {
             const res = await fetch('/api/dry-run', {
                 method: 'POST',
@@ -430,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok && data.status === 'success') {
                 logToConsole(`Dry Run finished. Server status: ${data.import_status}`, "success");
                 logToConsole(`Summary: Extracted=${data.records_extracted}, Mapped=${data.records_transformed}, MarkComplete=${data.will_mark_complete}`, "info");
-
+                
                 pipelineStatusText.textContent = `Simulation completed! Status: ${data.import_status}. Ready for definitive Import.`;
                 document.getElementById('step-dryrun').className = 'wizard-step completed';
                 document.getElementById('step-import').className = 'wizard-step active';
@@ -461,12 +465,12 @@ document.addEventListener('DOMContentLoaded', () => {
         modalConfirmImport.classList.add('hide');
         const complete = chkModalComplete.checked;
         const ignoreMissing = chkModalIgnore.checked;
-
+        
         logToConsole("Executing LIVE import to target DHIS2 server...", "warning");
         pipelineStatusText.textContent = "Executing final data import...";
         btnImport.setAttribute('disabled', 'true');
         btnDryRun.setAttribute('disabled', 'true');
-
+        
         try {
             const res = await fetch('/api/import', {
                 method: 'POST',
@@ -483,12 +487,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 logToConsole("LIVE IMPORT COMPLETED SUCCESSFULLY!", "success");
                 logToConsole(`Outcome Status: ${data.import_status}`, "success");
                 logToConsole(`Message: ${data.message}`, "info");
-
+                
                 if (data.import_count) {
                     const c = data.import_count;
                     logToConsole(`Records written: Imported=${c.imported || 0}, Updated=${c.updated || 0}, Ignored=${c.ignored || 0}, Deleted=${c.deleted || 0}`, "info");
                 }
-
+                
                 if (data.completion_report) {
                     logToConsole(`DataSet Completion Status: ${data.completion_report.status || 'N/A'}`, "info");
                 }
@@ -509,7 +513,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- MAPPINGS MANAGEMENT ---
 
-    // Always enabled now as it downloads global mappings.xlsx
     btnDownloadMapping.addEventListener('click', () => {
         logToConsole("Downloading global mappings.xlsx file...", "info");
         window.location.href = "/api/mapping/download";
@@ -561,8 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 uploadFileInfo.className = "margin-top-10 text-center font-bold text-success";
                 logToConsole("Global mapping file uploaded and applied successfully.", "success");
                 fileMappingUpload.value = "";
-
-                // Trigger re-validation if active
+                
                 const isExtractDone = document.getElementById('step-extract').classList.contains('completed');
                 if (isExtractDone) {
                     btnValidate.click();
@@ -587,7 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data.status === 'success') {
                 const settings = data.settings;
-
+                
                 txtDestUrl.value = settings.destination_url;
                 txtDestUsername.value = settings.destination_username;
                 txtDestPassword.value = settings.destination_password;
@@ -597,9 +599,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Populate Partners CRUD table
                 renderPartnersTable(settings.partners || {});
 
+                // Populate Sources CRUD table
+                renderSourcesTable(settings.sources || {});
+
                 // Populate Reports CRUD table
                 renderReportsTable(settings.reports || {});
-
+                
                 logToConsole("Configurations loaded successfully.", "info");
             }
         } catch (error) {
@@ -626,32 +631,56 @@ document.addEventListener('DOMContentLoaded', () => {
         tablePartnersBody.appendChild(tr);
     }
 
+    function renderSourcesTable(sources) {
+        tableSourcesBody.innerHTML = '';
+        Object.keys(sources).forEach(sUrl => {
+            const s = sources[sUrl];
+            appendSourceRow(s.base_url || sUrl, s.username || "", s.password || "");
+        });
+    }
+
+    function appendSourceRow(url = "", user = "", pwd = "") {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" class="form-control val-source-url" value="${url}" placeholder="e.g. https://data.psi-mis.org" style="font-family: monospace;" required></td>
+            <td><input type="text" class="form-control val-source-username" value="${user}" placeholder="Username" required></td>
+            <td><input type="password" class="form-control val-source-password" value="${pwd}" placeholder="Password" required></td>
+            <td><button type="button" class="btn btn-danger btn-sm btn-delete-row">Delete</button></td>
+        `;
+        tableSourcesBody.appendChild(tr);
+    }
+
     function renderReportsTable(reports) {
         tableReportsBody.innerHTML = '';
         Object.keys(reports).forEach(rId => {
             const r = reports[rId];
-            appendReportRow(rId, r.name || "", r.pivot_table_url || "", r.data_set || "", r.username || "", r.password || "");
+            appendReportRow(rId, r.name || "", r.pivot_table_url || "", r.data_set || "");
         });
     }
 
-    function appendReportRow(id = "", name = "", url = "", dataSet = "", user = "", pwd = "") {
+    function appendReportRow(id = "", name = "", url = "", dataSet = "") {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><input type="text" class="form-control val-report-id" value="${id}" placeholder="e.g. psi_monthly" style="font-family: monospace;" required></td>
             <td><input type="text" class="form-control val-report-name" value="${name}" placeholder="e.g. PSI Monthly Report" required></td>
-            <td><input type="text" class="form-control val-report-url" value="${url}" placeholder="e.g. https://...pe={period}..." required></td>
+            <td><input type="text" class="form-control val-report-url" value="${url}" placeholder="e.g. https://data.psi-mis.org/api/analytics.csv?..." required></td>
             <td><input type="text" class="form-control val-report-dataset" value="${dataSet}" placeholder="e.g. Target DataSet UID" style="font-family: monospace;" required></td>
-            <td><input type="text" class="form-control val-report-username" value="${user}" placeholder="Source Username"></td>
-            <td><input type="password" class="form-control val-report-password" value="${pwd}" placeholder="Source Password"></td>
             <td><button type="button" class="btn btn-danger btn-sm btn-delete-row">Delete</button></td>
         `;
         tableReportsBody.appendChild(tr);
     }
 
     btnAddPartnerRow.addEventListener('click', () => appendPartnerRow());
+    btnAddSourceRow.addEventListener('click', () => appendSourceRow());
     btnAddReportRow.addEventListener('click', () => appendReportRow());
 
     tablePartnersBody.addEventListener('click', (e) => {
+        if (e.target.classList.contains('btn-delete-row')) {
+            e.target.closest('tr').remove();
+        }
+    });
+
+    tableSourcesBody.addEventListener('click', (e) => {
         if (e.target.classList.contains('btn-delete-row')) {
             e.target.closest('tr').remove();
         }
@@ -675,7 +704,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const partnersMap = {};
         const pRows = tablePartnersBody.querySelectorAll('tr');
         let hasPartnerErrors = false;
-
+        
         pRows.forEach(row => {
             const pId = row.querySelector('.val-partner-id').value.trim();
             const pName = row.querySelector('.val-partner-name').value.trim();
@@ -691,7 +720,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // 2. Gather Reports map
+        // 2. Gather Sources map
+        const sourcesMap = {};
+        const sRows = tableSourcesBody.querySelectorAll('tr');
+        let hasSourceErrors = false;
+        
+        sRows.forEach(row => {
+            const sUrl = row.querySelector('.val-source-url').value.trim();
+            const sUser = row.querySelector('.val-source-username').value.trim();
+            const sPwd = row.querySelector('.val-source-password').value.trim();
+
+            if (sUrl) {
+                sourcesMap[sUrl] = {
+                    base_url: sUrl,
+                    username: sUser,
+                    password: sPwd
+                };
+            } else {
+                hasSourceErrors = true;
+            }
+        });
+
+        // 3. Gather Reports map
         const reportsMap = {};
         const rRows = tableReportsBody.querySelectorAll('tr');
         let hasReportErrors = false;
@@ -701,23 +751,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const rName = row.querySelector('.val-report-name').value.trim();
             const rUrl = row.querySelector('.val-report-url').value.trim();
             const rDataSet = row.querySelector('.val-report-dataset').value.trim();
-            const rUser = row.querySelector('.val-report-username').value.trim();
-            const rPwd = row.querySelector('.val-report-password').value.trim();
 
             if (rId) {
                 reportsMap[rId] = {
                     name: rName,
                     pivot_table_url: rUrl,
-                    data_set: rDataSet,
-                    username: rUser,
-                    password: rPwd
+                    data_set: rDataSet
                 };
             } else {
                 hasReportErrors = true;
             }
         });
 
-        if (hasPartnerErrors || hasReportErrors) {
+        if (hasPartnerErrors || hasSourceErrors || hasReportErrors) {
             alert("Please make sure all ID values are filled out correctly.");
             return;
         }
@@ -729,6 +775,7 @@ document.addEventListener('DOMContentLoaded', () => {
             destination_pat: txtDestPat.value.trim(),
             verify_ssl: chkVerifySsl.checked,
             partners: partnersMap,
+            sources: sourcesMap,
             reports: reportsMap
         };
 

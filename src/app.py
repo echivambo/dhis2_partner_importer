@@ -6,7 +6,7 @@ It exposes REST endpoints for:
 1. Fetching partner configurations and running health checks on connections.
 2. Managing the ETL pipeline (extracting, transforming/validating, running dry run, and importing).
 3. Downloading and uploading Excel mapping configurations.
-4. Managing application settings (.env credentials and partners/reports yaml config) dynamically.
+4. Managing application settings (.env credentials and dynamic yaml config) dynamically.
 
 Run locally using:
     uvicorn src.app:app --port 8005 --reload
@@ -87,13 +87,14 @@ class SettingsUpdate(BaseModel):
     destination_pat: Optional[str] = ""
     verify_ssl: bool = True
     partners: Dict[str, Dict[str, Any]]  # Key: partner ID, Value: partner data (name, attribute_option_combo)
-    reports: Dict[str, Dict[str, Any]]   # Key: report ID, Value: report data (name, pivot_table_url, data_set, username, password)
+    reports: Dict[str, Dict[str, Any]]   # Key: report ID, Value: report data (name, pivot_table_url, data_set)
+    sources: Dict[str, Dict[str, Any]]   # Key: base_url, Value: source data (base_url, username, password)
 
 # --- CORE ENDPOINTS ---
 
 @app.get("/api/partners")
 def list_partners():
-    """Retrieves a list of all configured partner IDs and metadata, along with available reports."""
+    """Retrieves a list of configured partner IDs, reports, and sources metadata."""
     try:
         loader = get_config_loader()
         
@@ -115,10 +116,18 @@ def list_partners():
                 "data_set": r_config.get("data_set")
             }
             
+        # Build sources map
+        sources_data = {}
+        for name, s_config in loader.get_sources().items():
+            sources_data[name] = {
+                "base_url": s_config.get("base_url")
+            }
+            
         return {
             "status": "success",
             "partners": partners_data,
-            "reports": reports_data
+            "reports": reports_data,
+            "sources": sources_data
         }
     except Exception as e:
         logger.error("Failed to retrieve partners and reports: %s", e)
@@ -126,7 +135,7 @@ def list_partners():
 
 @app.get("/api/health")
 def run_health_checks():
-    """Runs connectivity checks on the target destination DHIS2 and all partner report base URLs."""
+    """Runs connectivity checks on the target destination DHIS2 and all registered source servers."""
     try:
         loader = get_config_loader()
         dest = loader.get_destination_config()
@@ -151,36 +160,33 @@ def run_health_checks():
         else:
             dest_status["error"] = "No destination URL configured."
 
-        # 2. Check connections to reports base URLs
-        report_statuses = {}
-        for report_id, r_config in loader.get_reports().items():
-            report_statuses[report_id] = {"status": "Disconnected", "version": "N/A", "error": None}
-            url = r_config.get("pivot_table_url", "")
+        # 2. Check connections to source servers
+        source_statuses = {}
+        for source_url, s_config in loader.get_sources().items():
+            source_statuses[source_url] = {"status": "Disconnected", "version": "N/A", "error": None}
+            base_url = s_config.get("base_url", "") or source_url
             
-            if url:
+            if base_url:
                 try:
-                    parsed = urlparse(url)
-                    base_url = f"{parsed.scheme}://{parsed.netloc}"
-                    
                     src_client = DHIS2Client(
                         base_url=base_url,
-                        username=r_config.get("username"),
-                        password=r_config.get("password"),
+                        username=s_config.get("username"),
+                        password=s_config.get("password"),
                         verify_ssl=os.getenv("VERIFY_SSL", "true").lower() in ("true", "1"),
                         timeout=5.0
                     )
                     res = src_client.get("api/system/info")
                     data = res.json()
-                    report_statuses[report_id] = {"status": "Connected", "version": data.get("version", "Unknown"), "error": None}
+                    source_statuses[source_url] = {"status": "Connected", "version": data.get("version", "Unknown"), "error": None}
                 except Exception as e:
-                    report_statuses[report_id]["error"] = str(e)
+                    source_statuses[source_url]["error"] = str(e)
             else:
-                report_statuses[report_id]["error"] = "No Pivot Table URL configured."
+                source_statuses[source_url]["error"] = "No base URL configured."
                 
         return {
             "status": "success",
             "destination": dest_status,
-            "reports": report_statuses
+            "sources": source_statuses
         }
     except Exception as e:
         logger.error("Failed running connection health checks: %s", e)
@@ -188,7 +194,7 @@ def run_health_checks():
 
 @app.post("/api/extract")
 def extract_data(request: ExtractRequest):
-    """Executes the extraction process from the source report's DHIS2 pivot table URL for a combined YYYYMM period."""
+    """Executes the extraction process from the source server using report's pivot table URL for a period."""
     partner_id = request.partner_id
     report_id = request.report_id
     period = f"{request.year}{request.month}"
@@ -197,7 +203,7 @@ def extract_data(request: ExtractRequest):
     try:
         loader = get_config_loader()
         
-        # 1. Fetch Report credentials and pivot URL
+        # 1. Fetch Report config
         reports = loader.get_reports()
         if report_id not in reports:
             raise HTTPException(status_code=404, detail=f"Report '{report_id}' not found in configuration.")
@@ -207,19 +213,39 @@ def extract_data(request: ExtractRequest):
         if not pivot_table_url:
             raise HTTPException(status_code=400, detail="Pivot table URL is missing in the report configuration.")
             
-        # Parse base URL from pivot URL
-        parsed = urlparse(pivot_table_url)
-        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        # Parse host domain base URL dynamically from Pivot Table URL
+        parsed_url = urlparse(pivot_table_url)
+        if not parsed_url.scheme or not parsed_url.netloc:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid Pivot Table URL: '{pivot_table_url}'. It must be a complete URL (including http:// or https://)."
+            )
+            
+        base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
         
-        # Instantiate client
+        # Look up source credentials matching this base URL
+        norm_base = base_url.lower().rstrip("/")
+        source_config = None
+        for s_url, s_conf in loader.get_sources().items():
+            if s_url.lower().rstrip("/") == norm_base:
+                source_config = s_conf
+                break
+                
+        if not source_config:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"No server credentials configured in Settings for source domain: '{base_url}'"
+            )
+            
+        # Instantiate client using matched source server credentials
         client = DHIS2Client(
             base_url=base_url,
-            username=r_config.get("username"),
-            password=r_config.get("password"),
+            username=source_config.get("username"),
+            password=source_config.get("password"),
             verify_ssl=os.getenv("VERIFY_SSL", "true").lower() in ("true", "1")
         )
         
-        # Pull raw csv from Analytics
+        # Pull raw CSV from Analytics
         raw_df = extract_partner_data(client, pivot_table_url, period)
         
         # 2. Fetch Partner mapping and destination settings
@@ -425,7 +451,8 @@ def get_settings():
             "destination_pat": os.getenv("DESTINATION_DHIS2_PAT") or "",
             "verify_ssl": (os.getenv("VERIFY_SSL") or "true").lower() in ("true", "1", "yes"),
             "partners": loader._partners_config,
-            "reports": loader._reports_config
+            "reports": loader._reports_config,
+            "sources": loader._sources_config
         }
         return {"status": "success", "settings": settings}
     except Exception as e:
@@ -434,7 +461,7 @@ def get_settings():
 
 @app.post("/api/settings")
 def update_settings(settings: SettingsUpdate):
-    """Saves updated credentials to .env and updates partners and reports inside partners.yaml."""
+    """Saves updated credentials to .env and updates config yaml dynamically."""
     try:
         # 1. Update destination in .env
         env_dict = {
@@ -446,16 +473,14 @@ def update_settings(settings: SettingsUpdate):
         }
         save_env_variables(env_dict)
         
-        # 2. Update partners and reports in partners.yaml
+        # 2. Save partners, reports, and sources to local_config.yaml
         loader = get_config_loader()
-        new_yaml_config = {
-            "partners": settings.partners,
-            "reports": settings.reports
-        }
-        with open(loader.partners_file, "w", encoding="utf-8") as f:
-            yaml.dump(new_yaml_config, f, default_flow_style=False)
+        loader._partners_config = settings.partners
+        loader._reports_config = settings.reports
+        loader._sources_config = settings.sources
+        loader.save_local_config()
             
-        logger.info("Saved settings and YAML updates to partners.yaml.")
+        logger.info("Successfully persisted settings changes to local_config.yaml.")
         return {"status": "success", "message": "Settings updated successfully."}
     except Exception as e:
         logger.error("Failed to save settings: %s", e)
@@ -539,7 +564,7 @@ def save_env_variables(vars_dict: dict):
     logger.info("Saved credentials to .env")
 
 def generate_template_with_missing_keys(partner_id: str, state: dict):
-    """Generates/Updates mappings.xlsx with newly discovered source keys, preserving existing descriptions."""
+    """Generates/Updates mappings.xlsx with newly discovered source UIDs, preserving existing labels."""
     try:
         loader = get_config_loader()
         mapping_path = os.path.join(loader.mappings_dir, "mappings.xlsx")
@@ -549,7 +574,7 @@ def generate_template_with_missing_keys(partner_id: str, state: dict):
         current_de_map = partner_config["mappings"].get("data_elements", {})
         current_ou_map = partner_config["mappings"].get("organisation_units", {})
         
-        # Read existing details (Names, Districts, Countries) from mappings.xlsx if exists
+        # Read existing details (Names, Provinces, Countries) from mappings.xlsx if exists
         existing_de_details = {}
         existing_ou_details = {}
         
