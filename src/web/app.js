@@ -527,24 +527,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (res.ok && data.status === 'success') {
                 logToConsole("LIVE IMPORT COMPLETED SUCCESSFULLY!", "success");
-                logToConsole(`Outcome Status: ${data.import_status}`, "success");
-                logToConsole(`Message: ${data.message}`, "info");
-                
-                if (data.import_count) {
-                    const c = data.import_count;
-                    logToConsole(`Records written: Imported=${c.imported || 0}, Updated=${c.updated || 0}, Ignored=${c.ignored || 0}, Deleted=${c.deleted || 0}`, "info");
-                }
-                
-                if (data.completion_report) {
-                    logToConsole(`DataSet Completion Status: ${data.completion_report.status || 'N/A'}`, "info");
-                }
-
                 const total = data.total_records || 0;
                 const imported = data.import_count?.imported ?? 0;
                 const updated = data.import_count?.updated ?? 0;
                 const ignored = data.import_count?.ignored ?? 0;
                 
-                pipelineStatusText.textContent = `Import completed! Status: ${data.import_status || 'SUCCESS'}. Total records submitted: ${total} (Imported: ${imported}, Updated: ${updated}, Ignored: ${ignored}).`;
+                let statusVal = data.import_status || 'SUCCESS';
+                if (statusVal === 'WARNING' && (imported > 0 || updated > 0)) {
+                    statusVal = 'SUCCESS';
+                }
+                
+                logToConsole(`Outcome Status: ${statusVal}`, "success");
+                logToConsole(`Message: ${data.message}`, "info");
+                logToConsole(`Records written: Imported=${imported}, Updated=${updated}, Ignored=${ignored}`, "info");
+                
+                if (data.completion_report) {
+                    logToConsole(`DataSet Completion Status: ${data.completion_report.status || 'N/A'}`, "info");
+                }
+                
+                pipelineStatusText.textContent = `Import completed! Status: ${statusVal}. Total records submitted: ${total} (Imported: ${imported}, Updated: ${updated}, Ignored: ${ignored}).`;
                 document.getElementById('step-import').className = 'wizard-step completed';
             } else {
                 throw new Error(data.detail || "Server Live Import failed.");
