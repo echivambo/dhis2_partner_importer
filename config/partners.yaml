@@ -1,14 +1,27 @@
 partners:
-  DRC-Pathfinder:
-    attribute_option_combo: U5typbYDM1i
-    name: DRC- Pathfinder
+  MZ-PATHFINDER:
+    name: "MZ-PATHFINDER"
+    attribute_option_combo: "PARTNER_AOC_UID"
   MZ-PSI:
-    attribute_option_combo: i7fHIlLqKHr
-    name: MZ-PSI
+    name: "MZ-PSI"
+    attribute_option_combo: "PSI_AOC_UID"
+
+sources:
+  "https://data.psi-mis.org":
+    base_url: "https://data.psi-mis.org"
+    username: "pathfinder_user"
+    password: "pathfinder_password"
+  "https://another-dhis2.org":
+    base_url: "https://another-dhis2.org"
+    username: "psi_user"
+    password: "psi_password"
+
 reports:
+  pathfinder_monthly:
+    name: "Pathfinder Malaria Report"
+    pivot_table_url: "https://data.psi-mis.org/api/analytics.csv?dimension=dx:xA01Im2qXJ2;OIf5MUDkGjc;ikB8Ocarx3u;lUMKo1erWQ5;aXVGlFzOtno;sQqYMjbB8HR;JAG1MYpzgxl;MLUe29EGZG0;gwoemF7NzFs&dimension=ou:x1WEJQu4rJp;LEVEL-a2bG40SHomq&dimension=pe:{period}&tableLayout=true&columns=dx&rows=ou;pe&skipRounding=false&completedOnly=false&hideEmptyRows=true"
+    data_set: "Nrl1hP8S0mR"
   psi_monthly:
-    data_set: DC2YRPcinGT
-    name: PSI Monthly Facility Report
-    password: Montemor02523@
-    pivot_table_url: https://data.psi-mis.org/api/analytics.csv?dimension=dx%3Ar3LDeNOuCdK%3BlUMKo1erWQ5&dimension=ou%3ABxVVN63tF09%3BMfmoUaE3zAd&dimension=pe%3A{period}&showHierarchy=false&hierarchyMeta=false&includeMetadataDetails=true&includeNumDen=true&skipRounding=false&completedOnly=false&outputIdScheme=UID
-    username: echivambo
+    name: "PSI Monthly Facility Report"
+    pivot_table_url: "https://another-dhis2.org/api/analytics.csv?dimension=dx:xA01Im2qXJ2;OIf5MUDkGjc&dimension=ou:LEVEL-2&dimension=pe:{period}&tableLayout=true&columns=dx&rows=ou;pe"
+    data_set: "DESTINATION_DATASET_UID"
