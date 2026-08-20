@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=2.4">
+    <link rel="stylesheet" href="/static/style.css?v=2.5">
 </head>
 
 <body>
@@ -249,28 +249,7 @@
                     </div>
                 </div>
 
-                <!-- Preview Grid -->
-                <div class="card margin-top-20 hide" id="preview-card">
-                    <div class="card-header border-bottom">
-                        <h3>Preview of Translated (Mapped) Data</h3>
-                    </div>
-                    <div class="card-body no-padding scroll-x">
-                        <table class="dhis2-table" id="table-preview">
-                            <thead>
-                                <tr>
-                                    <th>Element (Source)</th>
-                                    <th>Element (Destination)</th>
-                                    <th>Org Unit (Source)</th>
-                                    <th>Org Unit (Destination)</th>
-                                    <th>Value</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Injected dynamically via JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+
 
                 <!-- Console Log Output Box -->
                 <div class="card margin-top-20">
@@ -472,15 +451,6 @@
             <h3 class="text-danger">⚠️ Confirm Live Import</h3>
             <p>You are about to perform a permanent data write to the central DHIS2 server. Do you want to proceed?</p>
 
-            <div class="form-group flex-row align-center gap-10 margin-top-15">
-                <input type="checkbox" id="chk-modal-complete">
-                <label for="chk-modal-complete" class="no-margin">Mark dataset as complete on submission</label>
-            </div>
-            <div class="form-group flex-row align-center gap-10 margin-top-10">
-                <input type="checkbox" id="chk-modal-ignore">
-                <label for="chk-modal-ignore" class="no-margin">Ignore pending mappings (Save valid data only)</label>
-            </div>
-
             <div class="modal-actions margin-top-20">
                 <button class="btn btn-secondary" id="btn-modal-cancel">Cancel</button>
                 <button class="btn btn-danger" id="btn-modal-confirm">Yes, Execute Import</button>
@@ -489,7 +459,7 @@
     </div>
 
     <!-- Script loading -->
-    <script src="/static/app.js?v=2.4"></script>
+    <script src="/static/app.js?v=2.5"></script>
 </body>
 
 </html>

@@ -166,6 +166,10 @@ def import_to_dhis2(
         response = dest_client.post("api/dataValueSets", json=payload)
         import_summary = response.json()
         
+        # Handle cases where DHIS2 wraps the summary in a "response" key
+        if "response" in import_summary and isinstance(import_summary["response"], dict):
+            import_summary = import_summary["response"]
+            
         status = import_summary.get("status", "SUCCESS")
         import_count = import_summary.get("importCount", {})
         conflicts = import_summary.get("conflicts", [])
@@ -198,6 +202,7 @@ def import_to_dhis2(
         result = {
             "status": status,
             "message": "Data successfully sent to destination server.",
+            "total_records": len(payload["dataValues"]),
             "import_count": import_count,
             "conflicts": conflicts,
             "validation_report": report.summary()

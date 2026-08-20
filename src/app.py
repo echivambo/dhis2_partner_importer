@@ -385,6 +385,7 @@ def dry_run_import(request: DryRunRequest):
             "import_status": res.get("status"),
             "records_extracted": res.get("records_extracted"),
             "records_transformed": res.get("records_transformed"),
+            "total_records": res.get("payload_preview", {}).get("dataValuesCount", 0),
             "will_mark_complete": res.get("will_mark_complete"),
             "message": res.get("message", "")
         }
@@ -438,6 +439,7 @@ def live_import(request: ImportRequest):
             "status": "success",
             "import_status": res.get("status"),
             "message": res.get("message"),
+            "total_records": res.get("total_records", 0),
             "import_count": res.get("import_count", {}),
             "completion_report": res.get("completion_report", {}),
             "conflicts": res.get("conflicts", [])

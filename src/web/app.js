@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const validationAlertBox = document.getElementById('validation-alert-box');
     const pipelineStatusText = document.getElementById('pipeline-status-text');
     const previewCard = document.getElementById('preview-card');
-    const tablePreviewBody = document.getElementById('table-preview').querySelector('tbody');
+    const tablePreviewBody = document.getElementById('table-preview') ? document.getElementById('table-preview').querySelector('tbody') : null;
     const consoleLogs = document.getElementById('console-logs');
     const btnClearLogs = document.getElementById('btn-clear-logs');
 
@@ -63,8 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalConfirmImport = document.getElementById('modal-confirm-import');
     const btnModalCancel = document.getElementById('btn-modal-cancel');
     const btnModalConfirm = document.getElementById('btn-modal-confirm');
-    const chkModalComplete = document.getElementById('chk-modal-complete');
-    const chkModalIgnore = document.getElementById('chk-modal-ignore');
+    const chkModalComplete = null;
+    const chkModalIgnore = null;
 
     // --- TAB NAVIGATION SWITCHING ---
     tabButtons.forEach(btn => {
@@ -272,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (step.id === 'step-extract') step.classList.add('active');
         });
 
-        previewCard.classList.add('hide');
+        if (previewCard) previewCard.classList.add('hide');
         validationAlertBox.classList.add('hide');
         pipelineStatusText.textContent = "Parameters changed. Ready to extract data.";
     }
@@ -337,8 +337,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (res.ok && data.status === 'success') {
                 logToConsole("Validation step completed.", "info");
-                renderPreviewTable(data.preview);
-                previewCard.classList.remove('hide');
+                if (previewCard) {
+                    renderPreviewTable(data.preview);
+                    previewCard.classList.remove('hide');
+                }
                 
                 if (data.is_valid) {
                     logToConsole("All records successfully mapped and checked. Ready for Import/Simulation.", "success");
@@ -367,6 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function renderPreviewTable(records) {
+        if (!tablePreviewBody) return;
         tablePreviewBody.innerHTML = '';
         if (!records || records.length === 0) {
             tablePreviewBody.innerHTML = '<tr><td colspan="5" class="text-center">No transformed data available.</td></tr>';
@@ -463,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logToConsole("Starting Dry Run import simulation to target server...", "info");
         pipelineStatusText.textContent = "Simulating data write on DHIS2...";
         btnDryRun.setAttribute('disabled', 'true');
-        const ignoreMissing = chkModalIgnore.checked;
+        const ignoreMissing = !document.getElementById('step-validate').classList.contains('completed');
         
         try {
             const res = await fetch('/api/dry-run', {
@@ -493,9 +496,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 4. IMPORT STEP
     btnImport.addEventListener('click', () => {
-        chkModalComplete.checked = false;
-        const isValidationOk = document.getElementById('step-validate').classList.contains('completed');
-        chkModalIgnore.checked = !isValidationOk;
         modalConfirmImport.classList.remove('hide');
     });
 
@@ -505,8 +505,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnModalConfirm.addEventListener('click', async () => {
         modalConfirmImport.classList.add('hide');
-        const complete = chkModalComplete.checked;
-        const ignoreMissing = chkModalIgnore.checked;
+        const complete = false;
+        const ignoreMissing = !document.getElementById('step-validate').classList.contains('completed');
         
         logToConsole("Executing LIVE import to target DHIS2 server...", "warning");
         pipelineStatusText.textContent = "Executing final data import...";
@@ -539,7 +539,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     logToConsole(`DataSet Completion Status: ${data.completion_report.status || 'N/A'}`, "info");
                 }
 
-                pipelineStatusText.textContent = `Import completed! Records imported: ${data.import_count?.imported || 0}, updated: ${data.import_count?.updated || 0}.`;
+                const total = data.total_records || 0;
+                const imported = data.import_count?.imported ?? 0;
+                const updated = data.import_count?.updated ?? 0;
+                const ignored = data.import_count?.ignored ?? 0;
+                
+                pipelineStatusText.textContent = `Import completed! Status: ${data.import_status || 'SUCCESS'}. Total records submitted: ${total} (Imported: ${imported}, Updated: ${updated}, Ignored: ${ignored}).`;
                 document.getElementById('step-import').className = 'wizard-step completed';
             } else {
                 throw new Error(data.detail || "Server Live Import failed.");
