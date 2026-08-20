@@ -392,27 +392,69 @@ document.addEventListener('DOMContentLoaded', () => {
     function showValidationAlert(data) {
         validationAlertBox.innerHTML = '';
         
-        let deListHtml = data.missing_de_list.length > 0 ? `<li><strong>Data Elements:</strong> <code>${data.missing_de_list.join(', ')}</code></li>` : '';
-        let ouListHtml = data.missing_ou_list.length > 0 ? `<li><strong>Organisation Units:</strong> <code>${data.missing_ou_list.join(', ')}</code></li>` : '';
-        
-        validationAlertBox.innerHTML = `
-            <div style="background-color: #ffeef0; border-left: 5px solid #d83b01; padding: 15px; border-radius: 4px; font-family: sans-serif;">
-                <h4 style="color: #d83b01; margin-top: 0; margin-bottom: 8px;">[⚠️] Unmapped Source UIDs Detected</h4>
-                <p style="margin: 0 0 10px 0; font-size: 0.9em; color: #333;">
-                    New source codes were found that do not have a translation corresponding to the destination:
-                </p>
-                <ul style="margin: 0 0 15px 20px; font-size: 0.9em; color: #444; line-height: 1.4;">
-                    ${deListHtml}
-                    ${ouListHtml}
-                </ul>
-                <a href="/api/mapping/download?t=${Date.now()}" download style="background-color: #d83b01; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block; font-size: 0.9em; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    📥 Download Updated Mapping Sheet
-                </a>
-                <p style="margin: 10px 0 0 0; font-size: 0.8em; color: #555;">
-                    Open the file in Excel, fill in the blanks in the <strong>Destination UID</strong> and <strong>Name</strong> columns (along with <strong>Province</strong> and <strong>Country</strong> for Organisation Units), save it, and upload it using the mappings manager.
-                </p>
-            </div>
+        let contentHtml = `
+            <div style="background-color: #ffeef0; border-left: 5px solid #d83b01; padding: 15px; border-radius: 4px; font-family: sans-serif; display: flex; flex-direction: column; gap: 12px;">
+                <h4 style="color: #d83b01; margin: 0 0 5px 0; font-size: 1.1em;">[⚠️] Validation Findings / Errors Detected</h4>
         `;
+        
+        // 1. Critical Errors
+        if (data.errors && data.errors.length > 0) {
+            contentHtml += `
+                <div>
+                    <strong style="color: #d83b01; font-size: 0.9em;">Critical Configuration Errors:</strong>
+                    <ul style="margin: 5px 0 0 20px; padding: 0; font-size: 0.85em; color: #333; line-height: 1.4;">
+                        ${data.errors.map(err => `<li>${err}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+        
+        // 2. Missing Data Elements
+        if (data.missing_de_count > 0) {
+            contentHtml += `
+                <div>
+                    <strong style="color: #d83b01; font-size: 0.9em;">Missing Data Element Mappings (${data.missing_de_count}):</strong>
+                    <div style="font-size: 0.8em; color: #555; background: #fff; padding: 8px; border: 1px solid #ddd; border-radius: 4px; max-height: 120px; overflow-y: auto; margin-top: 5px; font-family: monospace; white-space: pre-wrap; line-height: 1.4;">${data.missing_de_list.join('\n')}</div>
+                </div>
+            `;
+        }
+        
+        // 3. Missing Organisation Units
+        if (data.missing_ou_count > 0) {
+            contentHtml += `
+                <div>
+                    <strong style="color: #d83b01; font-size: 0.9em;">Missing Organisation Unit Mappings (${data.missing_ou_count}):</strong>
+                    <div style="font-size: 0.8em; color: #555; background: #fff; padding: 8px; border: 1px solid #ddd; border-radius: 4px; max-height: 120px; overflow-y: auto; margin-top: 5px; font-family: monospace; white-space: pre-wrap; line-height: 1.4;">${data.missing_ou_list.join('\n')}</div>
+                </div>
+            `;
+        }
+        
+        // 4. Invalid Periods
+        if (data.invalid_periods_count > 0) {
+            contentHtml += `
+                <div>
+                    <strong style="color: #d83b01; font-size: 0.9em;">Invalid Period Formats (${data.invalid_periods_count}):</strong>
+                    <div style="font-size: 0.8em; color: #555; background: #fff; padding: 8px; border: 1px solid #ddd; border-radius: 4px; max-height: 80px; overflow-y: auto; margin-top: 5px; font-family: monospace; white-space: pre-wrap; line-height: 1.4;">${data.invalid_periods_list.join('\n')}</div>
+                </div>
+            `;
+        }
+        
+        // 5. Download Button & Tips (if mapping errors exist)
+        if (data.missing_de_count > 0 || data.missing_ou_count > 0) {
+            contentHtml += `
+                <div style="margin-top: 5px; border-top: 1px solid #f5dcd3; padding-top: 12px;">
+                    <a href="/api/mapping/download?t=${Date.now()}" download style="background-color: #d83b01; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block; font-size: 0.9em; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        📥 Download Updated Mapping Sheet
+                    </a>
+                    <p style="margin: 8px 0 0 0; font-size: 0.8em; color: #555; line-height: 1.4;">
+                        Open the file in Excel, fill in the blanks in the <strong>Destination UID</strong> and <strong>Name</strong> columns (along with <strong>Province</strong> and <strong>Country</strong> for Organisation Units), save it, and upload it using the mappings manager.
+                    </p>
+                </div>
+            `;
+        }
+        
+        contentHtml += `</div>`;
+        validationAlertBox.innerHTML = contentHtml;
         validationAlertBox.classList.remove('hide');
     }
 
