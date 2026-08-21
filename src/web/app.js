@@ -975,12 +975,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {
         btnLogout.addEventListener('click', async () => {
-            if (confirm("Are you sure you want to sign out?")) {
-                try {
-                    await fetch('/api/logout', { method: 'POST' });
-                } catch (e) {}
-                window.location.reload();
-            }
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+            } catch (e) {}
+            window.location.reload();
         });
     }
 
@@ -1158,6 +1156,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 downloadUrl += `?start_date=${start}&end_date=${end}`;
             }
             window.location.href = downloadUrl;
+        });
+    }
+
+    // --- PASSWORD UPDATE SUBMISSION ---
+    const formChangePassword = document.getElementById('form-change-password');
+    if (formChangePassword) {
+        formChangePassword.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const current_password = document.getElementById('txt-change-old-password').value;
+            const new_password = document.getElementById('txt-change-new-password').value;
+            const confirm_password = document.getElementById('txt-change-confirm-password').value;
+            
+            if (new_password !== confirm_password) {
+                alert("New passwords do not match!");
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/users/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ current_password, new_password })
+                });
+                const data = await res.json();
+                
+                if (res.ok && data.status === 'success') {
+                    alert("Password updated successfully!");
+                    formChangePassword.reset();
+                } else {
+                    alert(data.detail || "Failed to update password.");
+                }
+            } catch (err) {
+                alert("Error updating password: " + err.message);
+            }
         });
     }
 

@@ -54,7 +54,7 @@ app = FastAPI(
 from src.utils.db import (
     init_db, get_session_user, create_session, delete_session,
     verify_password, get_user, create_user, delete_user,
-    list_users, get_audit_logs, log_action
+    list_users, get_audit_logs, log_action, update_user_password
 )
 init_db()
 
@@ -81,6 +81,10 @@ class UserCreateRequest(BaseModel):
     username: str
     password: str
     role: str
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 # Global variables for caching active dataframes and configs
 # Key: partner_id, Value: dict containing 'raw_df', 'transformed_df', 'validation_report'
@@ -201,6 +205,24 @@ def remove_user(request: Request, target_username: str, current_user: Dict[str, 
         
     log_action(current_user["username"], "Delete User", f"Deleted user: {target_username}", request.client.host)
     return {"status": "success", "message": f"User '{target_username}' deleted successfully."}
+
+@app.post("/api/users/change-password")
+def change_password(request: Request, payload: PasswordChangeRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Allows logged-in users to update their own passwords."""
+    username = current_user["username"]
+    
+    # 1. Fetch user to verify current password
+    user = get_user(username)
+    if not user or not verify_password(payload.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Invalid current password.")
+        
+    # 2. Update to new password
+    success = update_user_password(username, payload.new_password)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update password.")
+        
+    log_action(username, "Change Password", "User updated password successfully", request.client.host)
+    return {"status": "success", "message": "Password updated successfully."}
 
 @app.get("/api/logs")
 def fetch_logs(

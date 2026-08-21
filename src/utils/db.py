@@ -131,6 +131,21 @@ def delete_user(username: str) -> bool:
     finally:
         conn.close()
 
+def update_user_password(username: str, new_password_plain: str) -> bool:
+    """Updates a user's password_hash in the database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    pwd_hash = hash_password(new_password_plain)
+    try:
+        cursor.execute(
+            "UPDATE users SET password_hash = ? WHERE username = ?",
+            (pwd_hash, username.strip())
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
 def get_user(username: str) -> Optional[Dict[str, Any]]:
     """Retrieves user row by username."""
     conn = get_db_connection()

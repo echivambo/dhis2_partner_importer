@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css?v=2.6">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23005a9c%22><path d=%22M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,6V11H6V13H11V18H13V13H18V11H13V6H11Z%22/></svg>">
 </head>
 
 <body>
@@ -542,11 +543,32 @@
                                     <th style="width: 80px;">Action</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <!-- Injected dynamically via JS -->
                             </tbody>
                         </table>
                     </div>
+                </div>
+                <!-- Change My Password (All users) -->
+                <div class="card margin-top-20" id="card-change-password">
+                    <div class="card-header border-bottom">
+                        <h3>Change My Password</h3>
+                    </div>
+                    <form id="form-change-password" class="card-body flex-column gap-15">
+                        <div class="form-group">
+                            <label for="txt-change-old-password">Current Password</label>
+                            <input type="password" id="txt-change-old-password" class="form-control" placeholder="Current password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="txt-change-new-password">New Password</label>
+                            <input type="password" id="txt-change-new-password" class="form-control" placeholder="New password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="txt-change-confirm-password">Confirm New Password</label>
+                            <input type="password" id="txt-change-confirm-password" class="form-control" placeholder="Confirm new password" required>
+                        </div>
+                        <div class="flex-row justify-end" style="margin-top: 10px;">
+                            <button type="submit" class="btn btn-primary">Update Password</button>
+                        </div>
+                    </form>
                 </div>
             </section>
 
